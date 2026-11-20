@@ -96,7 +96,8 @@ def _breakdown_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter]) -> N
     res, df = r.q(sql)
     df = _frame(df, dims)
     df["value"] = [compiler.metric_value(m.name, n, d) for n, d in zip(df["num"], df["den"])]
-    df = df.sort_values("den", ascending=False)
+    # ratio metrics: biggest segments first (support); additive metrics: rank by the metric itself (top merchants by GMV)
+    df = df.sort_values("den" if m.type == "ratio" else "value", ascending=False)
     df["segment"] = df[dims].astype(str).agg(" · ".join, axis=1)
     keys = drivers._keys({sg: sg for sg in df["segment"]})
     df["key"] = df["segment"].map(keys)
@@ -286,7 +287,7 @@ def _dq_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter], as_of) -> l
     common = dict(sql=[res1.sql, res2.sql], sql_hashes=[res1.sql_hash, res2.sql_hash], tables=["dq_daily", "transactions"],
                   filters=_filters_text(region_only), window=span.label)
     for w in warnings:
-        vals = dict(w.values) | {"check": w.check, "severity": w.severity}
+        vals = dict(w.values) | {"check": w.check, "severity": w.severity, "message": w.message}
         fmts = {k: ("text" if isinstance(v, str) or v is None else "int" if float(v).is_integer() else "float")
                 for k, v in vals.items()}
         r.add(kind="dq_check", title=f"Data quality: {w.message}", values=vals, formats=fmts, **common)
