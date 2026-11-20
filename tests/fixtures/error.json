@@ -1,0 +1,22 @@
+{
+ "run_id": "fx-error-0001",
+ "question": "Show me everything",
+ "persona": "head",
+ "status": "error",
+ "route": null,
+ "plan": null,
+ "headline": null,
+ "claims": [],
+ "evidence": [],
+ "dq": [],
+ "drivers": null,
+ "recon": null,
+ "confidence": null,
+ "confidence_reasons": [],
+ "clarification": null,
+ "refusal": null,
+ "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "timings_ms": {},
+ "llm_usage": {},
+ "error": "Planner returned no valid plan after one repair round."
+}

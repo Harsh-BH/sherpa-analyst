@@ -1,0 +1,385 @@
+{
+ "run_id": "fx-recon-0001",
+ "question": "Why doesn't settled amount match GMV for the last 7 days?",
+ "persona": "head",
+ "status": "answered",
+ "route": "catalog",
+ "plan": {
+  "question": "Why doesn't settled amount match GMV for the last 7 days?",
+  "route": "catalog",
+  "intent": "reconcile",
+  "metric": "settled_net",
+  "dimensions": [],
+  "filters": [],
+  "window": {
+   "preset": "last_7_days",
+   "start": null,
+   "end": null,
+   "label": "last 7 days (13-19 Nov 2026)"
+  },
+  "baseline": null,
+  "grain": "day",
+  "sql": null,
+  "assumptions": [],
+  "ambiguities": [],
+  "refuse_reason": null,
+  "clarify_question": null
+ },
+ "headline": "Settled net is ₹19.48 L below GMV, mostly fees and refunds; nothing is unexplained.",
+ "claims": [
+  {
+   "kind": "fact",
+   "text": "Transaction GMV was {E1.txn_gmv} and settled net was {E1.settled_net}, a gap of {E1.gap}.",
+   "evidence_ids": [
+    "E1"
+   ],
+   "rendered": "Transaction GMV was ₹12.49 Cr and settled net was ₹12.29 Cr, a gap of ₹19.48 L.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "fact",
+   "text": "MDR fees ({E1.fees}) and refunds ({E1.refunds}) explain most of the gap; the 23:00 cutoff moves {E1.cutoff_timing} into the next cycle.",
+   "evidence_ids": [
+    "E1"
+   ],
+   "rendered": "MDR fees (₹22.58 L) and refunds (₹2.51 L) explain most of the gap; the 23:00 cutoff moves ₹4.20 L into the next cycle.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "caveat",
+   "text": "Settlements contain {E1.missing_transactions} of sales missing from our transaction data, matching the PG_C ingestion gap.",
+   "evidence_ids": [
+    "E1",
+    "E2"
+   ],
+   "rendered": "Settlements contain -₹9.80 L of sales missing from our transaction data, matching the PG_C ingestion gap.",
+   "ok": true,
+   "problems": []
+  }
+ ],
+ "evidence": [
+  {
+   "id": "E1",
+   "kind": "reconciliation",
+   "title": "GMV to settled net bridge, last 7 days",
+   "sql": [
+    "SELECT txn_date, SUM(amount_paise / 100.0) AS gmv_inr\nFROM analytics.transactions\nWHERE status = 'SUCCESS' AND txn_date BETWEEN DATE '2026-11-13' AND DATE '2026-11-19'\nGROUP BY 1\nLIMIT 5000",
+    "SELECT cycle_date, SUM(amount_paise / 100.0) AS gmv_inr\nFROM analytics.transactions\nWHERE status = 'SUCCESS' AND cycle_date BETWEEN DATE '2026-11-13' AND DATE '2026-11-19'\nGROUP BY 1\nLIMIT 5000",
+    "SELECT cycle_date, SUM(gross_paise) / 100.0 AS gross_inr, SUM(refund_paise) / 100.0 AS refund_inr,\n       SUM(fee_paise) / 100.0 AS fee_inr, SUM(net_paise) / 100.0 AS net_inr\nFROM analytics.settlements\nWHERE cycle_date BETWEEN DATE '2026-11-13' AND DATE '2026-11-19'\nGROUP BY 1\nLIMIT 5000"
+   ],
+   "sql_hashes": [
+    "97769e7e1799",
+    "b86806a5e655",
+    "251964773906"
+   ],
+   "tables": [
+    "transactions",
+    "settlements"
+   ],
+   "filters": [],
+   "window": "last 7 days (13-19 Nov 2026)",
+   "baseline": null,
+   "row_count": 21,
+   "values": {
+    "txn_gmv": 124863000.0,
+    "settled_net": 122914540.0,
+    "gap": 1948460.0,
+    "cutoff_timing": 420000.0,
+    "missing_transactions": -980000.0,
+    "refunds": 250846.0,
+    "fees": 2257614.0,
+    "unexplained": 0.0
+   },
+   "formats": {
+    "txn_gmv": "inr",
+    "settled_net": "inr",
+    "gap": "inr",
+    "cutoff_timing": "inr",
+    "missing_transactions": "inr",
+    "refunds": "inr",
+    "fees": "inr",
+    "unexplained": "inr"
+   },
+   "table": [
+    {
+     "component": "cutoff_timing",
+     "amount_inr": 420000.0,
+     "note": "Sales after the 23:00 IST cutoff on 19 Nov fall into the next settlement cycle."
+    },
+    {
+     "component": "missing_transactions",
+     "amount_inr": -980000.0,
+     "note": "Settlements include sales we never ingested (PG_C gap on 16 Nov), so they exceed our GMV."
+    },
+    {
+     "component": "refunds",
+     "amount_inr": 250846.0,
+     "note": "Refunds netted off payouts."
+    },
+    {
+     "component": "fees",
+     "amount_inr": 2257614.0,
+     "note": "MDR fees (1.8%) deducted from payouts."
+    },
+    {
+     "component": "unexplained",
+     "amount_inr": 0.0,
+     "note": "Float residue after the identity."
+    }
+   ],
+   "chart": null
+  },
+  {
+   "id": "E2",
+   "kind": "dq_check",
+   "title": "PG_C attempts by hour on 16 Nov (data-quality check)",
+   "sql": [
+    "SELECT txn_date, region, gateway, raw_events, distinct_txns, duplicate_events, null_issuer_nonwallet,\n       max_ingest_lag_s\nFROM analytics.dq_daily\nWHERE txn_date BETWEEN DATE '2026-11-13' AND DATE '2026-11-19'\nLIMIT 5000",
+    "SELECT txn_date, txn_hour, gateway, COUNT(*) AS attempts\nFROM analytics.transactions\nWHERE txn_date BETWEEN DATE '2026-11-06' AND DATE '2026-11-19'\nGROUP BY 1, 2, 3\nLIMIT 5000"
+   ],
+   "sql_hashes": [
+    "c68a2a0c33d4",
+    "9e5283765650"
+   ],
+   "tables": [
+    "dq_daily",
+    "transactions"
+   ],
+   "filters": [
+    "gateway in (PG_C)"
+   ],
+   "window": "last 7 days (13-19 Nov 2026)",
+   "baseline": null,
+   "row_count": 24,
+   "values": {
+    "gateway": "PG_C",
+    "date": "2026-11-16",
+    "missing_hours": 6,
+    "expected_attempts": 1080
+   },
+   "formats": {
+    "gateway": "text",
+    "date": "date",
+    "missing_hours": "int",
+    "expected_attempts": "int"
+   },
+   "table": [
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 0,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 1,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 2,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 3,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 4,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 5,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 6,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 7,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 8,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 9,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 10,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 11,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 12,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 13,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 14,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 15,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 16,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 17,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 18,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 19,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 20,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 21,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 22,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 23,
+     "gateway": "PG_C",
+     "attempts": 120
+    }
+   ],
+   "chart": null
+  }
+ ],
+ "dq": [
+  {
+   "check": "missing_data",
+   "severity": "warn",
+   "message": "PG_C recorded no attempts on 16 Nov 2026 between 02:00 and 08:00 IST (6 hours; ~1,080 attempts expected from the prior 7 days). Rates for that day may be biased.",
+   "values": {
+    "gateway": "PG_C",
+    "date": "2026-11-16",
+    "missing_hours": 6,
+    "expected_attempts": 1080
+   }
+  }
+ ],
+ "drivers": null,
+ "recon": {
+  "window": "last 7 days (13-19 Nov 2026)",
+  "txn_gmv_inr": 124863000.0,
+  "settled_net_inr": 122914540.0,
+  "gap_inr": 1948460.0,
+  "components": [
+   {
+    "name": "cutoff_timing",
+    "amount_inr": 420000.0,
+    "note": "Sales after the 23:00 IST cutoff on 19 Nov fall into the next settlement cycle."
+   },
+   {
+    "name": "missing_transactions",
+    "amount_inr": -980000.0,
+    "note": "Settlements include sales we never ingested (PG_C gap on 16 Nov), so they exceed our GMV."
+   },
+   {
+    "name": "refunds",
+    "amount_inr": 250846.0,
+    "note": "Refunds netted off payouts."
+   },
+   {
+    "name": "fees",
+    "amount_inr": 2257614.0,
+    "note": "MDR fees (1.8%) deducted from payouts."
+   },
+   {
+    "name": "unexplained",
+    "amount_inr": 0.0,
+    "note": "Float residue after the identity."
+   }
+  ],
+  "source_of_truth": "analytics.settlements for payouts; analytics.transactions for sales"
+ },
+ "confidence": "high",
+ "confidence_reasons": [
+  "The bridge identity holds exactly (unexplained = ₹0)",
+  "Both sources are governed metrics"
+ ],
+ "clarification": null,
+ "refusal": null,
+ "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "timings_ms": {
+  "plan": 1900,
+  "sql": 140,
+  "narrate": 2500,
+  "total": 4700
+ },
+ "llm_usage": {
+  "backend": "fixture",
+  "model": "none",
+  "cost_usd": 0.0
+ },
+ "error": null
+}

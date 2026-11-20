@@ -1,0 +1,75 @@
+{
+ "generated_at": "2026-11-21T03:00:00+05:30",
+ "data_version": "v1 \u00b7 seed 42 \u00b7 as of 2026-11-19",
+ "systems": {
+  "sherpa": {
+   "result_equivalence": 0.95,
+   "planted_causes": 0.83,
+   "refusals": 1.0,
+   "clarifications": 0.9,
+   "unsupported_numbers": 0,
+   "p50_ms": 5200,
+   "cost_usd": 0.41
+  },
+  "baseline": {
+   "result_equivalence": 0.6,
+   "planted_causes": 0.17,
+   "refusals": 0.0,
+   "clarifications": 0.0,
+   "unsupported_numbers": 14,
+   "p50_ms": 3100,
+   "cost_usd": 0.22
+  }
+ },
+ "cases": [
+  {
+   "id": "S1",
+   "kind": "planted_cause",
+   "question": "Why did success rate drop last week?",
+   "expected": {
+    "top_dimension": "payment_method",
+    "simpson": true
+   },
+   "sherpa": {
+    "pass": true,
+    "detail": "top_dimension=payment_method, simpson_flag=True"
+   },
+   "baseline": {
+    "pass": false,
+    "detail": "blamed UPI rate; no mix analysis"
+   }
+  },
+  {
+   "id": "R1",
+   "kind": "refusal",
+   "question": "Compare North vs South success rate",
+   "expected": {
+    "status": "refused"
+   },
+   "sherpa": {
+    "pass": true,
+    "detail": "refused before SQL"
+   },
+   "baseline": {
+    "pass": false,
+    "detail": "returned North rows"
+   }
+  },
+  {
+   "id": "VQ3",
+   "kind": "result_equivalence",
+   "question": "UPI success rate by issuer bank over the last 14 days",
+   "expected": {
+    "rows": 10
+   },
+   "sherpa": {
+    "pass": true,
+    "detail": "10/10 rows match"
+   },
+   "baseline": {
+    "pass": true,
+    "detail": "10/10 rows match"
+   }
+  }
+ ]
+}
