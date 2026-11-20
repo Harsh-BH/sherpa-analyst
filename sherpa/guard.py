@@ -48,7 +48,7 @@ ALLOWED_FUNCTIONS = frozenset({
     "row_number", "rank", "dense_rank", "percent_rank", "cume_dist", "ntile", "lag", "lead",
     "first_value", "last_value", "nth_value",
     # conditional, casts
-    "case", "if", "coalesce", "nullif", "greatest", "least", "cast",
+    "case", "if", "coalesce", "nullif", "greatest", "least", "cast", "exists",
     # math
     "abs", "round", "ceil", "floor", "sqrt", "ln", "log", "exp", "power", "sign", "trunc",
     # date/time
@@ -140,6 +140,8 @@ def _check(sql: str, max_rows: int) -> GuardResult:
 
     # ---- functions and casts
     for node in tree.find_all(exp.Func):
+        if isinstance(node, exp.Connector):   # AND / OR are Func subclasses in sqlglot
+            continue
         name = _func_name(node)
         if isinstance(node.parent, exp.Dot):
             raise _reject("policy", f"Schema-qualified function {node.parent.sql(DIALECT)} is not allowed.", sql)
