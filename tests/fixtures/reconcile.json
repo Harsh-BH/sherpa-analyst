@@ -129,7 +129,178 @@
      "note": "Float residue after the identity."
     }
    ],
-   "chart": null
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": {
+     "text": "From transaction GMV to settled net",
+     "subtitle": "last 7 days (13-19 Nov 2026)"
+    },
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "step": "Transaction GMV",
+       "kind": "Total",
+       "start": 0.0,
+       "end": 124863000.0,
+       "top": 124863000.0,
+       "_label": "₹12.49 Cr"
+      },
+      {
+       "step": "Cutoff timing",
+       "kind": "Reduces payout",
+       "start": 124863000.0,
+       "end": 124443000.0,
+       "top": 124863000.0,
+       "_label": "-₹4.20 L"
+      },
+      {
+       "step": "Missing transactions",
+       "kind": "Adds to payout",
+       "start": 124443000.0,
+       "end": 125423000.0,
+       "top": 125423000.0,
+       "_label": "+₹9.80 L"
+      },
+      {
+       "step": "Refunds",
+       "kind": "Reduces payout",
+       "start": 125423000.0,
+       "end": 125172154.0,
+       "top": 125423000.0,
+       "_label": "-₹2.51 L"
+      },
+      {
+       "step": "Fees",
+       "kind": "Reduces payout",
+       "start": 125172154.0,
+       "end": 122914540.0,
+       "top": 125172154.0,
+       "_label": "-₹22.58 L"
+      },
+      {
+       "step": "Unexplained",
+       "kind": "No effect",
+       "start": 122914540.0,
+       "end": 122914540.0,
+       "top": 122914540.0,
+       "_label": "+₹0"
+      },
+      {
+       "step": "Settled net",
+       "kind": "Total",
+       "start": 0.0,
+       "end": 122914540.0,
+       "top": 122914540.0,
+       "_label": "₹12.29 Cr"
+      }
+     ]
+    },
+    "layer": [
+     {
+      "mark": {
+       "type": "bar",
+       "clip": true
+      },
+      "encoding": {
+       "x": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null,
+        "axis": {
+         "labelAngle": 0
+        }
+       },
+       "y": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          119151850.0,
+          126363672.5
+         ]
+        },
+        "axis": {
+         "title": "INR (axis starts above zero)",
+         "labelExpr": "(datum.value < 0 ? '-' : '') + '₹' + (abs(datum.value) >= 1e7 ? format(abs(datum.value) / 1e7, '.2f') + ' Cr' : abs(datum.value) >= 1e5 ? format(abs(datum.value) / 1e5, '.2f') + ' L' : format(abs(datum.value), ',.0f'))"
+        },
+        "field": "start"
+       },
+       "y2": {
+        "field": "end"
+       },
+       "color": {
+        "field": "kind",
+        "type": "nominal",
+        "scale": {
+         "range": [
+          "#595959",
+          "#D55E00",
+          "#009E73",
+          "#BBBBBB"
+         ],
+         "domain": [
+          "Total",
+          "Reduces payout",
+          "Adds to payout",
+          "No effect"
+         ]
+        },
+        "legend": {
+         "title": null,
+         "orient": "top"
+        }
+       },
+       "tooltip": [
+        {
+         "field": "step",
+         "title": "Step"
+        },
+        {
+         "field": "_label",
+         "title": "Amount"
+        }
+       ]
+      }
+     },
+     {
+      "mark": {
+       "type": "text",
+       "baseline": "bottom",
+       "dy": -3,
+       "fontSize": 11
+      },
+      "encoding": {
+       "x": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null,
+        "axis": {
+         "labelAngle": 0
+        }
+       },
+       "y": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          119151850.0,
+          126363672.5
+         ]
+        },
+        "axis": {
+         "title": "INR (axis starts above zero)",
+         "labelExpr": "(datum.value < 0 ? '-' : '') + '₹' + (abs(datum.value) >= 1e7 ? format(abs(datum.value) / 1e7, '.2f') + ' Cr' : abs(datum.value) >= 1e5 ? format(abs(datum.value) / 1e5, '.2f') + ' L' : format(abs(datum.value), ',.0f'))"
+        },
+        "field": "top"
+       },
+       "text": {
+        "field": "_label"
+       }
+      }
+     }
+    ]
+   }
   },
   {
    "id": "E2",
@@ -311,7 +482,215 @@
      "attempts": 120
     }
    ],
-   "chart": null
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Attempts by txn hour",
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 0,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 1,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 2,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 3,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 4,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 5,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 6,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 7,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 8,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 9,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 10,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 11,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 12,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 13,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 14,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 15,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 16,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 17,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 18,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 19,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 20,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 21,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 22,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 23,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      }
+     ]
+    },
+    "mark": {
+     "type": "line",
+     "point": true
+    },
+    "encoding": {
+     "x": {
+      "field": "txn_hour",
+      "type": "ordinal",
+      "title": "Txn hour"
+     },
+     "y": {
+      "field": "attempts",
+      "type": "quantitative",
+      "scale": {
+       "zero": false
+      },
+      "axis": {
+       "title": "Attempts",
+       "labelExpr": "format(datum.value, ',.0f')"
+      }
+     },
+     "tooltip": [
+      {
+       "field": "txn_hour",
+       "title": "Txn hour"
+      },
+      {
+       "field": "_label",
+       "title": "Attempts"
+      }
+     ]
+    }
+   }
   }
  ],
  "dq": [
@@ -369,7 +748,8 @@
  ],
  "clarification": null,
  "refusal": null,
- "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
  "timings_ms": {
   "plan": 1900,
   "sql": 140,

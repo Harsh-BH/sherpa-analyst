@@ -15,7 +15,8 @@
  "confidence_reasons": [],
  "clarification": null,
  "refusal": null,
- "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
  "timings_ms": {},
  "llm_usage": {},
  "error": "Planner returned no valid plan after one repair round."

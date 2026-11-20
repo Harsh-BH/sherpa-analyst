@@ -132,7 +132,79 @@
      "rate": 0.917
     }
    ],
-   "chart": null
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Rate by period",
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "period": "baseline",
+       "num": 92800,
+       "den": 100000,
+       "rate": 0.928,
+       "_label": "92.8%"
+      },
+      {
+       "period": "current",
+       "num": 91700,
+       "den": 100000,
+       "rate": 0.917,
+       "_label": "91.7%"
+      }
+     ]
+    },
+    "encoding": {
+     "x": {
+      "field": "period",
+      "type": "nominal",
+      "sort": null,
+      "title": "Period",
+      "axis": {
+       "labelAngle": 0
+      }
+     },
+     "y": {
+      "field": "rate",
+      "type": "quantitative",
+      "axis": {
+       "title": "Rate",
+       "labelExpr": "format(datum.value, '.1%')"
+      }
+     },
+     "tooltip": [
+      {
+       "field": "period",
+       "title": "Period"
+      },
+      {
+       "field": "_label",
+       "title": "Rate"
+      }
+     ]
+    },
+    "layer": [
+     {
+      "mark": {
+       "type": "bar"
+      },
+      "encoding": {}
+     },
+     {
+      "mark": {
+       "type": "text",
+       "baseline": "bottom",
+       "dy": -3,
+       "fontSize": 11
+      },
+      "encoding": {
+       "text": {
+        "field": "_label"
+       }
+      }
+     }
+    ]
+   }
   },
   {
    "id": "E2",
@@ -205,7 +277,246 @@
      "rate_effect": 0.0025000000000000022
     }
    ],
-   "chart": null
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": {
+     "text": "Mix vs rate by payment method",
+     "subtitle": "Δ -1.10 pp = mix -1.60 pp + rate +0.50 pp"
+    },
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "step": "UPI · mix",
+       "kind": "Mix effect",
+       "start": 0.0,
+       "end": -0.008000000000000005,
+       "lo": -0.008000000000000005,
+       "hi": 0.0,
+       "value": -0.008000000000000005,
+       "_label": "-0.80 pp"
+      },
+      {
+       "step": "CARD · mix",
+       "kind": "Mix effect",
+       "start": -0.008000000000000005,
+       "end": -0.015999999999999966,
+       "lo": -0.015999999999999966,
+       "hi": -0.008000000000000005,
+       "value": -0.00799999999999996,
+       "_label": "-0.80 pp"
+      },
+      {
+       "step": "UPI · rate",
+       "kind": "Rate effect",
+       "start": -0.015999999999999966,
+       "end": -0.013499999999999963,
+       "lo": -0.015999999999999966,
+       "hi": -0.013499999999999963,
+       "value": 0.0025000000000000022,
+       "_label": "+0.25 pp"
+      },
+      {
+       "step": "CARD · rate",
+       "kind": "Rate effect",
+       "start": -0.013499999999999963,
+       "end": -0.010999999999999961,
+       "lo": -0.013499999999999963,
+       "hi": -0.010999999999999961,
+       "value": 0.0025000000000000022,
+       "_label": "+0.25 pp"
+      },
+      {
+       "step": "Mix total",
+       "kind": "Total",
+       "start": 0.0,
+       "end": -0.015999999999999966,
+       "lo": -0.015999999999999966,
+       "hi": 0.0,
+       "value": -0.015999999999999966,
+       "_label": "-1.60 pp"
+      },
+      {
+       "step": "Rate total",
+       "kind": "Total",
+       "start": 0.0,
+       "end": 0.0050000000000000044,
+       "lo": 0.0,
+       "hi": 0.0050000000000000044,
+       "value": 0.0050000000000000044,
+       "_label": "+0.50 pp"
+      },
+      {
+       "step": "Change (Δ)",
+       "kind": "Total",
+       "start": 0.0,
+       "end": -0.01100000000000001,
+       "lo": -0.01100000000000001,
+       "hi": 0.0,
+       "value": -0.01100000000000001,
+       "_label": "-1.10 pp"
+      }
+     ]
+    },
+    "height": {
+     "step": 24
+    },
+    "layer": [
+     {
+      "mark": {
+       "type": "bar"
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "start"
+       },
+       "x2": {
+        "field": "end"
+       },
+       "color": {
+        "field": "kind",
+        "type": "nominal",
+        "scale": {
+         "range": [
+          "#0072B2",
+          "#E69F00",
+          "#595959"
+         ],
+         "domain": [
+          "Mix effect",
+          "Rate effect",
+          "Total"
+         ]
+        },
+        "legend": {
+         "title": null,
+         "orient": "top"
+        }
+       },
+       "tooltip": [
+        {
+         "field": "step",
+         "title": "Step"
+        },
+        {
+         "field": "kind",
+         "title": "Effect"
+        },
+        {
+         "field": "_label",
+         "title": "Contribution"
+        }
+       ]
+      }
+     },
+     {
+      "transform": [
+       {
+        "filter": "datum.value >= 0"
+       }
+      ],
+      "mark": {
+       "type": "text",
+       "align": "left",
+       "dx": 4
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "hi"
+       },
+       "text": {
+        "field": "_label"
+       }
+      }
+     },
+     {
+      "transform": [
+       {
+        "filter": "datum.value < 0"
+       }
+      ],
+      "mark": {
+       "type": "text",
+       "align": "right",
+       "dx": -4
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "lo"
+       },
+       "text": {
+        "field": "_label"
+       }
+      }
+     },
+     {
+      "mark": {
+       "type": "rule",
+       "strokeDash": [
+        4,
+        4
+       ]
+      },
+      "encoding": {
+       "x": {
+        "datum": 0,
+        "type": "quantitative"
+       }
+      }
+     }
+    ]
+   }
   },
   {
    "id": "E3",
@@ -387,7 +698,215 @@
      "attempts": 120
     }
    ],
-   "chart": null
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Attempts by txn hour",
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 0,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 1,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 2,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 3,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 4,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 5,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 6,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 7,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 8,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 9,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 10,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 11,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 12,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 13,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 14,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 15,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 16,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 17,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 18,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 19,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 20,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 21,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 22,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 23,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      }
+     ]
+    },
+    "mark": {
+     "type": "line",
+     "point": true
+    },
+    "encoding": {
+     "x": {
+      "field": "txn_hour",
+      "type": "ordinal",
+      "title": "Txn hour"
+     },
+     "y": {
+      "field": "attempts",
+      "type": "quantitative",
+      "scale": {
+       "zero": false
+      },
+      "axis": {
+       "title": "Attempts",
+       "labelExpr": "format(datum.value, ',.0f')"
+      }
+     },
+     "tooltip": [
+      {
+       "field": "txn_hour",
+       "title": "Txn hour"
+      },
+      {
+       "field": "_label",
+       "title": "Attempts"
+      }
+     ]
+    }
+   }
   }
  ],
  "dq": [
@@ -616,7 +1135,8 @@
  ],
  "clarification": null,
  "refusal": null,
- "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
  "timings_ms": {
   "plan": 2100,
   "sql": 180,

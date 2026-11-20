@@ -47,9 +47,25 @@
  "clarification": null,
  "refusal": {
   "reason": "Your role (Regional manager, South) can see the South region only, so North is out of scope. No query was run.",
-  "suggestion": "I can show South's success rate by payment method for the same window instead."
+  "suggestion": "I can show South's success rate by payment method for the same window instead.",
+  "plan_patch": {
+   "intent": "breakdown",
+   "dimensions": [
+    "payment_method"
+   ],
+   "filters": [
+    {
+     "dimension": "region",
+     "op": "in",
+     "values": [
+      "South"
+     ]
+    }
+   ]
+  }
  },
- "data_version": "v1 · seed 42 · as of 2026-11-19",
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
  "timings_ms": {},
  "llm_usage": {},
  "error": null
