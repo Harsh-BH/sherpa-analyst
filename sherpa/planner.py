@@ -58,19 +58,6 @@ def preset_dates(as_of: date, data_start: date) -> dict[str, tuple[date, date]]:
     return {k: (max(s, data_start), e) for k, (s, e) in raw.items()}
 
 
-def _clean(node):
-    """Pydantic JSON schema -> strict structured-output schema: no titles/defaults, closed objects, all keys required."""
-    if isinstance(node, list):
-        return [_clean(x) for x in node]
-    if not isinstance(node, dict):
-        return node
-    out = {k: _clean(v) for k, v in node.items() if k not in ("title", "default")}
-    if out.get("type") == "object" and "properties" in out:
-        out["additionalProperties"] = False
-        out["required"] = list(out["properties"])
-    return out
-
-
 @lru_cache(maxsize=1)
 def plan_schema() -> dict:
     cat = load_catalog()
@@ -85,7 +72,7 @@ def plan_schema() -> dict:
     p["sql"]["description"] = "sql route only: one Postgres SELECT over analytics.*"
     s["$defs"]["Filter"]["properties"]["dimension"] = {"type": "string", "enum": dims}
     del s["$defs"]["TimeWindow"]["properties"]["label"]    # filled by the resolver, never by the model
-    return _clean(s)
+    return llm.strict_schema(s)
 
 
 def _example_plan(question: str, plan: dict) -> dict:

@@ -49,6 +49,20 @@ def structured(*, system: str, user: str, schema: dict, model: str, max_tokens: 
     return data, usage
 
 
+def strict_schema(node):
+    """Pydantic JSON schema -> structured-output schema both backends accept: no titles/defaults,
+    closed objects, every key required (optional fields stay nullable)."""
+    if isinstance(node, list):
+        return [strict_schema(x) for x in node]
+    if not isinstance(node, dict):
+        return node
+    out = {k: strict_schema(v) for k, v in node.items() if k not in ("title", "default")}
+    if out.get("type") == "object" and "properties" in out:
+        out["additionalProperties"] = False
+        out["required"] = list(out["properties"])
+    return out
+
+
 def _check_required(data: object, schema: dict) -> None:
     if not isinstance(data, dict):
         raise LLMUnavailable(f"model returned {type(data).__name__}, expected a JSON object")
