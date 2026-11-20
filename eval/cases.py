@@ -202,8 +202,12 @@ def grade_sherpa(case: Case, bundle: AnswerBundle, gold: pd.DataFrame | None = N
 
 
 # ---------------------------------------------------------------- shared checks
+_PLACEHOLDER = re.compile(r"\{E\d+\.[A-Za-z0-9_]+\}")
+
+
 def bundle_text(bundle: AnswerBundle) -> str:
-    return "\n".join([bundle.headline or ""] + [x for c in bundle.claims for x in (c.text, c.rendered)])
+    # Placeholders are citations by construction; their key names (e.g. {E3.12_segment}) are not numerals in prose.
+    return "\n".join([bundle.headline or ""] + [x for c in bundle.claims for x in (_PLACEHOLDER.sub("", c.text), c.rendered)])
 
 
 def leaked(text: str, secret: str, n: int) -> list[str]:
@@ -218,4 +222,5 @@ def sherpa_unsupported(bundle: AnswerBundle, question: str) -> list[str]:
     for e in bundle.evidence:
         values += list(e.values.values()) + [v for row in e.table for v in row.values()]
         labels += [e.window or "", e.baseline or ""]
+        labels += [str(row["segment"]) for row in e.table if "segment" in row]   # names like hour "12" are labels, not data
     return unsupported_numbers(bundle_text(bundle), values, allowed_text=" ".join(labels))

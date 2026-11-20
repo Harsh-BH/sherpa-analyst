@@ -8,3 +8,4 @@ data/*
 eval/results/*
 !eval/results/.gitkeep
 .streamlit/secrets.toml
+!eval/results/latest.json
