@@ -123,6 +123,16 @@ def test_reconcile_renders_bridge():
     assert "Reconciliation components" in markdown(at) and at.get("vega_lite_chart")
 
 
+def test_partial_pipeline_data_does_not_crash_the_card():
+    b = backend.load_fixture("explain_change")
+    b.evidence[0].values["note"] = "free text, no format"     # a string value with no ValueFormat
+    b.claims[0].evidence_ids = ["E1", "E1", "E9"]               # duplicate and dangling evidence ids
+    b.llm_usage = {"backend": "template", "cost_usd": None}
+    at = app(bundle=b)
+    assert not at.exception, [e.value for e in at.exception]
+    assert any("No evidence E9" in w.value for w in at.warning)
+
+
 def test_error_card_keeps_run_id():
     at = app(bundle=backend.load_fixture("error"))
     assert not at.exception and any("failed" in e.value for e in at.error)

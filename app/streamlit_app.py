@@ -169,8 +169,8 @@ EVAL_METRICS = [  # key, label, format, higher is better
 
 
 def _fmt(v, fmt: str) -> str:
-    if v is None:
-        return "n/a"
+    if not isinstance(v, int | float):   # missing or malformed in the results file: show it, don't crash
+        return "n/a" if v is None else str(v)
     return {"pct": f"{v:.0%}", "int": f"{v:,.0f}", "ms": f"{v / 1000:.1f} s", "usd": f"${v:.2f}"}[fmt]
 
 
@@ -214,7 +214,7 @@ def runs_page() -> None:
         st.info(f"Run history is unavailable ({esc(type(e).__name__)}: {esc(str(e).splitlines()[0] if str(e) else 'no detail')}). "
                 "It needs the seeded database and sherpa.runs.", icon=":material/database_off:")
         return
-    tiles = [("Runs", f"{stats.get('runs', 0):,}"), ("p50 latency", _fmt(stats.get("p50_ms"), "ms")),
+    tiles = [("Runs", _fmt(stats.get("runs"), "int")), ("p50 latency", _fmt(stats.get("p50_ms"), "ms")),
              ("p95 latency", _fmt(stats.get("p95_ms"), "ms")), ("LLM cost", _fmt(stats.get("llm_cost_usd"), "usd")),
              ("Refusal rate", _fmt(stats.get("refusal_rate"), "pct")), ("Clarify rate", _fmt(stats.get("clarify_rate"), "pct")),
              ("Cache hit rate", _fmt(stats.get("cache_hit_rate"), "pct"))]

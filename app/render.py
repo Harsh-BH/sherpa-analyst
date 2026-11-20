@@ -91,7 +91,7 @@ def answered(b: AnswerBundle) -> None:
                 st.badge("Governed metric", icon=":material/verified:", color="blue")
         meta = [f"run {b.run_id}", f"persona {b.persona}", b.data_version and f"data {b.data_version}",
                 b.as_of and f"as of {b.as_of:%d %b %Y}", "total" in b.timings_ms and f"{b.timings_ms['total'] / 1000:.1f} s",
-                "cost_usd" in b.llm_usage and f"LLM ${b.llm_usage['cost_usd']:.4f}"]
+                isinstance(b.llm_usage.get("cost_usd"), int | float) and f"LLM ${b.llm_usage['cost_usd']:.4f}"]
         st.caption(" · ".join(esc(m) for m in meta if m))
         if b.route == "sql":
             st.warning("**Unverified SQL.** The model wrote this query; it passed the guard but is not a governed "
@@ -131,7 +131,7 @@ def claims(b: AnswerBundle, by_id: dict[str, Evidence]) -> None:
                 st.caption(":material/report: Claim checker: " + esc("; ".join(c.problems) or "failed"))
             if c.evidence_ids:
                 with st.container(horizontal=True, gap="small"):
-                    for eid in c.evidence_ids:
+                    for eid in dict.fromkeys(c.evidence_ids):
                         e = by_id.get(eid)
                         with st.popover(esc(eid), icon=":material/database:", key=f"pop-{kind}-{i}-{eid}",
                                         help=esc(e.title) if e else "Evidence not found in this bundle"):
@@ -222,6 +222,11 @@ def sql_blocks(e: Evidence) -> None:
         st.code(sql, language="sql", wrap_lines=True)
 
 
+def value_text(e: Evidence, key: str) -> str:
+    v = e.values[key]
+    return format_value(v, e.formats.get(key, "text" if isinstance(v, str) else "float"))
+
+
 def evidence_panel(evidence: list[Evidence]) -> None:
     if not evidence:
         return
@@ -237,8 +242,8 @@ def evidence_panel(evidence: list[Evidence]) -> None:
                     st.vega_lite_chart(e.chart, width="stretch")
                 if e.values:
                     st.caption("Values claims can cite")
-                    st.dataframe(pd.DataFrame([{"placeholder": f"{{{e.id}.{k}}}", "value": format_value(v, e.formats.get(k, "float"))}
-                                               for k, v in e.values.items()]), hide_index=True)
+                    st.dataframe(pd.DataFrame([{"placeholder": f"{{{e.id}.{k}}}", "value": value_text(e, k)}
+                                               for k in e.values]), hide_index=True)
             if e.table:
                 st.caption(f"Result table ({len(e.table)} rows)")
                 st.dataframe(pd.DataFrame(e.table), hide_index=True)
