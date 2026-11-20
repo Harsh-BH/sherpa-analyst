@@ -492,6 +492,78 @@ def load(tables: dict[str, pd.DataFrame], truth: dict, db: str | None = None) ->
         cur.execute("SELECT set_config('sherpa.version', %s, true), set_config('sherpa.seed', %s, true)",
                     (truth["data_version"], str(truth["seed"])))
         cur.execute(BUILD_SQL.read_text())
+        bad = verify(cur, truth)
+        if bad:   # raising here rolls the whole load back: the DB keeps its previous, consistent state
+            raise RuntimeError("ground truth disagrees with the loaded rows:\n  " + "\n  ".join(bad))
+
+
+SR_SQL = "count(*) FILTER (WHERE status = 'SUCCESS')::float8 / nullif(count(*) FILTER (WHERE status <> 'DROPPED'), 0)"
+
+
+def verify(cur: psycopg.Cursor, truth: dict) -> list[str]:
+    """Re-derive every checkable ground-truth number from analytics.* in SQL (an independent path from the
+    pandas one that wrote it). Returns the mismatches; empty means the truth file describes this database."""
+    bad: list[str] = []
+    one = lambda q, *a: cur.execute(q, a).fetchone()                      # noqa: E731
+    tx = "FROM analytics.transactions WHERE txn_date BETWEEN %s AND %s"
+
+    def same(label: str, got, want, tol: float = 6e-5) -> None:
+        if got is None or want is None or abs(float(got) - float(want)) > tol:
+            bad.append(f"{label}: db {got} != truth {want}")
+
+    version = one("SELECT version FROM analytics.data_version")
+    if version is None or version[0] != truth["data_version"]:
+        bad.append(f"data_version: db {version} != truth {truth['data_version']}")
+    for sc in truth["scenarios"]:
+        e, f = sc["expected"], sc.get("facts", {})
+        w = sc.get("window", {})
+        b = sc.get("baseline", {})
+        if sc["id"] == "S1":
+            for key, per in (("baseline", b), ("current", w)):
+                share, rate = one(f"SELECT avg((payment_method = 'UPI')::int), {SR_SQL} {tx}", per["start"], per["end"])
+                same(f"S1 upi_share_{key}", share, f[f"upi_share_{key}"])
+                same(f"S1 sr_{key}", rate, f[f"sr_{key}"])
+        elif sc["id"] == "S2":
+            for key, per in (("baseline", b), ("current", w)):
+                same(f"S2 sr_{key}", one(f"SELECT {SR_SQL} {tx}", per["start"], per["end"])[0], f[f"sr_{key}"])
+                td = one("SELECT count(*) FILTER (WHERE decline_type = 'TECHNICAL')::float8 / nullif(count(*) FILTER "
+                         f"(WHERE status <> 'DROPPED'), 0) {tx} AND issuer_bank_id = %s AND txn_hour BETWEEN %s AND %s",
+                         per["start"], per["end"], e["segment"], *e["hours"])[0]
+                same(f"S2 bank_td_rate_in_hours_{key}", td, f[f"bank_td_rate_in_hours_{key}"])
+        elif sc["id"] == "S3":
+            c = e["cell"]
+            for key, per in (("baseline", b), ("current", w)):
+                same(f"S3 card_sr_{key}", one(f"SELECT {SR_SQL} {tx} AND payment_method = 'CARD'",
+                                              per["start"], per["end"])[0], f[f"card_sr_{key}"])
+                same(f"S3 cell_sr_{key}", one(f"SELECT {SR_SQL} {tx} AND payment_method = 'CARD' AND issuer_bank_id = %s "
+                                              "AND card_network = %s", per["start"], per["end"], c["issuer_bank"],
+                                              c["card_network"])[0], f[f"cell_sr_{key}"])
+        elif sc["id"] == "S4":
+            d = w["start"]
+            ok = "SELECT coalesce(sum(amount_paise), 0) / 100.0 FROM analytics.transactions WHERE status = 'SUCCESS' AND "
+            txn_gmv, cycle_gmv = one(ok + "txn_date = %s", d)[0], one(ok + "cycle_date = %s", d)[0]
+            gross, refunds, fees, net = one("SELECT sum(gross_paise) / 100.0, sum(refund_paise) / 100.0, sum(fee_paise) "
+                                            "/ 100.0, sum(net_paise) / 100.0 FROM analytics.settlements WHERE cycle_date = %s", d)
+            got = {"txn_gmv_inr": txn_gmv, "settled_net_inr": net, "cutoff_timing": txn_gmv - cycle_gmv,
+                   "missing_transactions": cycle_gmv - gross, "refunds": refunds, "fees": fees}
+            for k, v in got.items():
+                same(f"S4 {k}", v, e[k], 0.005)
+            same("S4 identity", txn_gmv - net, sum(e[k] for k in ("cutoff_timing", "missing_transactions", "refunds", "fees")), 0.02)
+        elif sc["id"] == "S5a":
+            same("S5a duplicate_events", one("SELECT sum(duplicate_events) FROM analytics.dq_daily WHERE txn_date = %s "
+                                             "AND gateway = %s", e["date"], e["gateway"])[0], e["duplicate_events"], 0)
+        elif sc["id"] == "S5b":
+            lo, hi = e["hours"]
+            inside, edges = one("SELECT count(*) FILTER (WHERE txn_hour BETWEEN %s AND %s), count(*) FILTER (WHERE txn_hour "
+                                "IN (%s, %s)) FROM analytics.transactions WHERE txn_date = %s AND gateway = %s",
+                                lo, hi, lo - 1, hi + 1, e["date"], e["gateway"])
+            if inside != 0 or edges == 0:
+                bad.append(f"S5b: {inside} rows inside hours {lo}-{hi}, {edges} at the edges (want 0 and > 0)")
+        elif sc["id"] == "S6":
+            name = one("SELECT display_name FROM analytics.merchants WHERE merchant_id = %s", e["merchant_id"])
+            if name is None or name[0] != e["display_name"]:
+                bad.append(f"S6 display_name: db {name}")
+    return bad
 
 
 def main() -> None:
