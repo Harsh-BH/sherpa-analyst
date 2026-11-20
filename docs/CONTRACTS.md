@@ -141,7 +141,7 @@ def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims:
 | kind | keys | table rows |
 |---|---|---|
 | metric | `value`, `num`, `den` | – |
-| breakdown | `value` (overall), `<segkey>_value`, `<segkey>_den` | `{segment, key, value, den}` |
+| breakdown | `value` (overall), `<segkey>_value`, `<segkey>_den`, `<segkey>_share` (additive: value / overall) or `<segkey>_den_share` (ratio: volume share) | `{segment, key, value, den}` |
 | trend | `first`, `last`, `change`, `min`, `max`, `min_at`, `max_at` (text) | `{bucket, value, den}` |
 | comparison | `r0`, `r1`, `delta`, `<segkey>_r0`, `<segkey>_r1`, `<segkey>_delta` | `{segment, key, r0, r1, delta, n0, n1}` |
 | decomposition / drilldown | as produced by `drivers.evidence_from_report` | rows carry `segment` + `key` |

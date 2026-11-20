@@ -103,9 +103,15 @@ def _breakdown_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter]) -> N
     df["key"] = df["segment"].map(keys)
     values: dict[str, Any] = {"value": out["current"][2]}
     formats: dict[str, ValueFormat] = {"value": _FMT[m.format]}
+    total_val, total_den = out["current"][2], float(df["den"].sum())
     for k, v, d in list(zip(df["key"], df["value"], df["den"]))[:25]:
         values[f"{k}_value"], formats[f"{k}_value"] = v, _FMT[m.format]
         values[f"{k}_den"], formats[f"{k}_den"] = d, "int"
+        # concentration claims ("X had a quarter of GMV") must cite a computed share, never an eyeballed one
+        if m.type == "simple" and total_val:
+            values[f"{k}_share"], formats[f"{k}_share"] = (v or 0) / total_val, "pct"
+        elif total_den:
+            values[f"{k}_den_share"], formats[f"{k}_den_share"] = d / total_den, "pct"
     rows = df[["segment", "key", *dims, "value", "den"]].head(200).to_dict("records")
     r.add(kind="breakdown", title=f"{m.label} by {', '.join(dims)}, {plan.window.label}", sql=[res_all.sql, res.sql],
           sql_hashes=[res_all.sql_hash, res.sql_hash], tables=res.tables, filters=_filters_text(filters),
