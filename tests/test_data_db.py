@@ -1,5 +1,6 @@
 """Seeded-database checks: access control matches access.yaml, the ground truth reproduces, the data is
 calibrated and deterministic. Reads `sherpa`; writes only the scratch database `sherpa_test`."""
+import os
 import dataclasses
 import json
 import subprocess
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.db
 ACCESS = load_access()
 PERSONAS = list(ACCESS.personas.values())
 REGION_TABLES = [t for t, cols in ACCESS.exposed_tables.items() if "region" in cols]
-SCRATCH = "sherpa_test"
+SCRATCH = f"sherpa_test_{os.getpid()}"   # per process: concurrent test runs (several worktrees) must not drop each other's scratch DB
 
 
 def admin(db=None):
