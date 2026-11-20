@@ -1,0 +1,72 @@
+{
+ "run_id": "fx-refused-0001",
+ "question": "Compare North vs South success rate",
+ "persona": "rm_south",
+ "status": "refused",
+ "route": null,
+ "plan": {
+  "question": "Compare North vs South success rate",
+  "route": "refuse",
+  "intent": "breakdown",
+  "metric": "success_rate",
+  "dimensions": [
+   "region"
+  ],
+  "filters": [
+   {
+    "dimension": "region",
+    "op": "in",
+    "values": [
+     "North",
+     "South"
+    ]
+   }
+  ],
+  "window": {
+   "preset": "last_7_days",
+   "start": null,
+   "end": null,
+   "label": "last 7 days (13-19 Nov 2026)"
+  },
+  "baseline": null,
+  "grain": "day",
+  "sql": null,
+  "assumptions": [],
+  "ambiguities": [],
+  "refuse_reason": "region North is out of scope",
+  "clarify_question": null
+ },
+ "headline": null,
+ "claims": [],
+ "evidence": [],
+ "dq": [],
+ "drivers": null,
+ "recon": null,
+ "confidence": null,
+ "confidence_reasons": [],
+ "clarification": null,
+ "refusal": {
+  "reason": "Your role (Regional manager, South) can see the South region only, so North is out of scope. No query was run.",
+  "suggestion": "I can show South's success rate by payment method for the same window instead.",
+  "plan_patch": {
+   "intent": "breakdown",
+   "dimensions": [
+    "payment_method"
+   ],
+   "filters": [
+    {
+     "dimension": "region",
+     "op": "in",
+     "values": [
+      "South"
+     ]
+    }
+   ]
+  }
+ },
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
+ "timings_ms": {},
+ "llm_usage": {},
+ "error": null
+}

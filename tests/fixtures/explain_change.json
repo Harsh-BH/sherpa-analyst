@@ -1,0 +1,1153 @@
+{
+ "run_id": "fx-explain-0001",
+ "question": "Why did success rate drop last week?",
+ "persona": "head",
+ "status": "answered",
+ "route": "catalog",
+ "plan": {
+  "question": "Why did success rate drop last week?",
+  "route": "catalog",
+  "intent": "explain_change",
+  "metric": "success_rate",
+  "dimensions": [],
+  "filters": [],
+  "window": {
+   "preset": "last_7_days",
+   "start": null,
+   "end": null,
+   "label": "last 7 days (13-19 Nov 2026)"
+  },
+  "baseline": {
+   "preset": "previous_7_days",
+   "start": null,
+   "end": null,
+   "label": "previous 7 days (6-12 Nov 2026)"
+  },
+  "grain": "day",
+  "sql": null,
+  "assumptions": [
+   "'last week' read as the last 7 complete days, compared with the 7 days before",
+   "'success rate' read as success / payments that reached the bank (excludes drop-offs)"
+  ],
+  "ambiguities": [],
+  "refuse_reason": null,
+  "clarify_question": null
+ },
+ "headline": "Success rate moved -1.10 pp (92.8% → 91.7%) because volume shifted to UPI, not because any method got worse.",
+ "claims": [
+  {
+   "kind": "fact",
+   "text": "Success rate moved from {E1.r0} to {E1.r1} ({E1.delta}) in the last 7 days versus the 7 days before.",
+   "evidence_ids": [
+    "E1"
+   ],
+   "rendered": "Success rate moved from 92.8% to 91.7% (-1.10 pp) in the last 7 days versus the 7 days before.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "fact",
+   "text": "Payment mix accounts for {E2.mix_total} of the change, while rates within each method moved {E2.rate_total}: UPI's share rose from {E2.UPI_share0} to {E2.UPI_share1} and its success rate rose from {E2.UPI_rate0} to {E2.UPI_rate1}.",
+   "evidence_ids": [
+    "E2"
+   ],
+   "rendered": "Payment mix accounts for -1.60 pp of the change, while rates within each method moved +0.50 pp: UPI's share rose from 40.0% to 60.0% and its success rate rose from 88.0% to 88.5%.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "hypothesis",
+   "text": "The shift toward UPI is consistent with a UPI-heavy merchant joining during the window. This is an association, not a confirmed cause.",
+   "evidence_ids": [
+    "E2"
+   ],
+   "rendered": "The shift toward UPI is consistent with a UPI-heavy merchant joining during the window. This is an association, not a confirmed cause.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "recommendation",
+   "text": "Compare success rate per payment method, not the blended rate, when the method mix changes between periods.",
+   "evidence_ids": [
+    "E2"
+   ],
+   "rendered": "Compare success rate per payment method, not the blended rate, when the method mix changes between periods.",
+   "ok": true,
+   "problems": []
+  },
+  {
+   "kind": "caveat",
+   "text": "PG_C recorded no attempts for {E3.missing_hours} hours on {E3.date}, so rates for that day may be slightly biased.",
+   "evidence_ids": [
+    "E3"
+   ],
+   "rendered": "PG_C recorded no attempts for 6 hours on 2026-11-16, so rates for that day may be slightly biased.",
+   "ok": true,
+   "problems": []
+  }
+ ],
+ "evidence": [
+  {
+   "id": "E1",
+   "kind": "comparison",
+   "title": "Success rate, last 7 days vs previous 7 days",
+   "sql": [
+    "SELECT CASE WHEN txn_date >= DATE '2026-11-13' THEN 'current' ELSE 'baseline' END AS period,\n       COUNT(*) FILTER (WHERE status = 'SUCCESS') AS num,\n       COUNT(*) FILTER (WHERE status IN ('SUCCESS', 'FAILED')) AS den\nFROM analytics.transactions\nWHERE txn_date BETWEEN DATE '2026-11-06' AND DATE '2026-11-19'\nGROUP BY 1\nLIMIT 5000"
+   ],
+   "sql_hashes": [
+    "8f080bdae576"
+   ],
+   "tables": [
+    "transactions"
+   ],
+   "filters": [],
+   "window": "last 7 days (13-19 Nov 2026)",
+   "baseline": "previous 7 days (6-12 Nov 2026)",
+   "row_count": 2,
+   "values": {
+    "r0": 0.928,
+    "r1": 0.917,
+    "delta": -0.01100000000000001,
+    "n0": 100000,
+    "n1": 100000
+   },
+   "formats": {
+    "r0": "pct",
+    "r1": "pct",
+    "delta": "pp",
+    "n0": "int",
+    "n1": "int"
+   },
+   "table": [
+    {
+     "period": "baseline",
+     "num": 92800,
+     "den": 100000,
+     "rate": 0.928
+    },
+    {
+     "period": "current",
+     "num": 91700,
+     "den": 100000,
+     "rate": 0.917
+    }
+   ],
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Rate by period",
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "period": "baseline",
+       "num": 92800,
+       "den": 100000,
+       "rate": 0.928,
+       "_label": "92.8%"
+      },
+      {
+       "period": "current",
+       "num": 91700,
+       "den": 100000,
+       "rate": 0.917,
+       "_label": "91.7%"
+      }
+     ]
+    },
+    "encoding": {
+     "x": {
+      "field": "period",
+      "type": "nominal",
+      "sort": null,
+      "title": "Period",
+      "axis": {
+       "labelAngle": 0
+      }
+     },
+     "y": {
+      "field": "rate",
+      "type": "quantitative",
+      "axis": {
+       "title": "Rate",
+       "labelExpr": "format(datum.value, '.1%')"
+      }
+     },
+     "tooltip": [
+      {
+       "field": "period",
+       "title": "Period"
+      },
+      {
+       "field": "_label",
+       "title": "Rate"
+      }
+     ]
+    },
+    "layer": [
+     {
+      "mark": {
+       "type": "bar"
+      },
+      "encoding": {}
+     },
+     {
+      "mark": {
+       "type": "text",
+       "baseline": "bottom",
+       "dy": -3,
+       "fontSize": 11
+      },
+      "encoding": {
+       "text": {
+        "field": "_label"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "E2",
+   "kind": "decomposition",
+   "title": "Rate vs mix decomposition by payment method",
+   "sql": [
+    "SELECT payment_method, CASE WHEN txn_date >= DATE '2026-11-13' THEN 'current' ELSE 'baseline' END AS period,\n       COUNT(*) FILTER (WHERE status = 'SUCCESS') AS num,\n       COUNT(*) FILTER (WHERE status IN ('SUCCESS', 'FAILED')) AS den\nFROM analytics.transactions\nWHERE txn_date BETWEEN DATE '2026-11-06' AND DATE '2026-11-19'\nGROUP BY 1, 2\nLIMIT 5000"
+   ],
+   "sql_hashes": [
+    "5d249653fb0e"
+   ],
+   "tables": [
+    "transactions"
+   ],
+   "filters": [],
+   "window": "last 7 days (13-19 Nov 2026)",
+   "baseline": "previous 7 days (6-12 Nov 2026)",
+   "row_count": 4,
+   "values": {
+    "delta": -0.01100000000000001,
+    "mix_total": -0.015999999999999966,
+    "rate_total": 0.0050000000000000044,
+    "UPI_share0": 0.4,
+    "UPI_share1": 0.6,
+    "UPI_rate0": 0.88,
+    "UPI_rate1": 0.885,
+    "UPI_mix_effect": -0.008000000000000005,
+    "UPI_rate_effect": 0.0025000000000000022,
+    "CARD_share0": 0.6,
+    "CARD_share1": 0.4,
+    "CARD_rate0": 0.96,
+    "CARD_rate1": 0.965,
+    "CARD_mix_effect": -0.00799999999999996,
+    "CARD_rate_effect": 0.0025000000000000022
+   },
+   "formats": {
+    "delta": "pp",
+    "mix_total": "pp",
+    "rate_total": "pp",
+    "UPI_share0": "pct",
+    "UPI_share1": "pct",
+    "UPI_rate0": "pct",
+    "UPI_rate1": "pct",
+    "UPI_mix_effect": "pp",
+    "UPI_rate_effect": "pp",
+    "CARD_share0": "pct",
+    "CARD_share1": "pct",
+    "CARD_rate0": "pct",
+    "CARD_rate1": "pct",
+    "CARD_mix_effect": "pp",
+    "CARD_rate_effect": "pp"
+   },
+   "table": [
+    {
+     "payment_method": "UPI",
+     "share0": 0.4,
+     "share1": 0.6,
+     "rate0": 0.88,
+     "rate1": 0.885,
+     "mix_effect": -0.008000000000000005,
+     "rate_effect": 0.0025000000000000022
+    },
+    {
+     "payment_method": "CARD",
+     "share0": 0.6,
+     "share1": 0.4,
+     "rate0": 0.96,
+     "rate1": 0.965,
+     "mix_effect": -0.00799999999999996,
+     "rate_effect": 0.0025000000000000022
+    }
+   ],
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": {
+     "text": "Mix vs rate by payment method",
+     "subtitle": "Δ -1.10 pp = mix -1.60 pp + rate +0.50 pp"
+    },
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "step": "UPI · mix",
+       "kind": "Mix effect",
+       "start": 0.0,
+       "end": -0.008000000000000005,
+       "lo": -0.008000000000000005,
+       "hi": 0.0,
+       "value": -0.008000000000000005,
+       "_label": "-0.80 pp"
+      },
+      {
+       "step": "CARD · mix",
+       "kind": "Mix effect",
+       "start": -0.008000000000000005,
+       "end": -0.015999999999999966,
+       "lo": -0.015999999999999966,
+       "hi": -0.008000000000000005,
+       "value": -0.00799999999999996,
+       "_label": "-0.80 pp"
+      },
+      {
+       "step": "UPI · rate",
+       "kind": "Rate effect",
+       "start": -0.015999999999999966,
+       "end": -0.013499999999999963,
+       "lo": -0.015999999999999966,
+       "hi": -0.013499999999999963,
+       "value": 0.0025000000000000022,
+       "_label": "+0.25 pp"
+      },
+      {
+       "step": "CARD · rate",
+       "kind": "Rate effect",
+       "start": -0.013499999999999963,
+       "end": -0.010999999999999961,
+       "lo": -0.013499999999999963,
+       "hi": -0.010999999999999961,
+       "value": 0.0025000000000000022,
+       "_label": "+0.25 pp"
+      },
+      {
+       "step": "Mix total",
+       "kind": "Total",
+       "start": 0.0,
+       "end": -0.015999999999999966,
+       "lo": -0.015999999999999966,
+       "hi": 0.0,
+       "value": -0.015999999999999966,
+       "_label": "-1.60 pp"
+      },
+      {
+       "step": "Rate total",
+       "kind": "Total",
+       "start": 0.0,
+       "end": 0.0050000000000000044,
+       "lo": 0.0,
+       "hi": 0.0050000000000000044,
+       "value": 0.0050000000000000044,
+       "_label": "+0.50 pp"
+      },
+      {
+       "step": "Change (Δ)",
+       "kind": "Total",
+       "start": 0.0,
+       "end": -0.01100000000000001,
+       "lo": -0.01100000000000001,
+       "hi": 0.0,
+       "value": -0.01100000000000001,
+       "_label": "-1.10 pp"
+      }
+     ]
+    },
+    "height": {
+     "step": 24
+    },
+    "layer": [
+     {
+      "mark": {
+       "type": "bar"
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "start"
+       },
+       "x2": {
+        "field": "end"
+       },
+       "color": {
+        "field": "kind",
+        "type": "nominal",
+        "scale": {
+         "range": [
+          "#0072B2",
+          "#E69F00",
+          "#595959"
+         ],
+         "domain": [
+          "Mix effect",
+          "Rate effect",
+          "Total"
+         ]
+        },
+        "legend": {
+         "title": null,
+         "orient": "top"
+        }
+       },
+       "tooltip": [
+        {
+         "field": "step",
+         "title": "Step"
+        },
+        {
+         "field": "kind",
+         "title": "Effect"
+        },
+        {
+         "field": "_label",
+         "title": "Contribution"
+        }
+       ]
+      }
+     },
+     {
+      "transform": [
+       {
+        "filter": "datum.value >= 0"
+       }
+      ],
+      "mark": {
+       "type": "text",
+       "align": "left",
+       "dx": 4
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "hi"
+       },
+       "text": {
+        "field": "_label"
+       }
+      }
+     },
+     {
+      "transform": [
+       {
+        "filter": "datum.value < 0"
+       }
+      ],
+      "mark": {
+       "type": "text",
+       "align": "right",
+       "dx": -4
+      },
+      "encoding": {
+       "y": {
+        "field": "step",
+        "type": "nominal",
+        "sort": null,
+        "title": null
+       },
+       "x": {
+        "type": "quantitative",
+        "scale": {
+         "domain": [
+          -0.020619999999999958,
+          0.009619999999999997
+         ]
+        },
+        "axis": {
+         "title": "Contribution to the change (pp)",
+         "labelExpr": "format(datum.value * 100, '+.1f') + ' pp'"
+        },
+        "field": "lo"
+       },
+       "text": {
+        "field": "_label"
+       }
+      }
+     },
+     {
+      "mark": {
+       "type": "rule",
+       "strokeDash": [
+        4,
+        4
+       ]
+      },
+      "encoding": {
+       "x": {
+        "datum": 0,
+        "type": "quantitative"
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "E3",
+   "kind": "dq_check",
+   "title": "PG_C attempts by hour on 16 Nov (data-quality check)",
+   "sql": [
+    "SELECT txn_date, region, gateway, raw_events, distinct_txns, duplicate_events, null_issuer_nonwallet,\n       max_ingest_lag_s\nFROM analytics.dq_daily\nWHERE txn_date BETWEEN DATE '2026-11-13' AND DATE '2026-11-19'\nLIMIT 5000",
+    "SELECT txn_date, txn_hour, gateway, COUNT(*) AS attempts\nFROM analytics.transactions\nWHERE txn_date BETWEEN DATE '2026-11-06' AND DATE '2026-11-19'\nGROUP BY 1, 2, 3\nLIMIT 5000"
+   ],
+   "sql_hashes": [
+    "c68a2a0c33d4",
+    "9e5283765650"
+   ],
+   "tables": [
+    "dq_daily",
+    "transactions"
+   ],
+   "filters": [
+    "gateway in (PG_C)"
+   ],
+   "window": "last 7 days (13-19 Nov 2026)",
+   "baseline": null,
+   "row_count": 24,
+   "values": {
+    "gateway": "PG_C",
+    "date": "2026-11-16",
+    "missing_hours": 6,
+    "expected_attempts": 1080
+   },
+   "formats": {
+    "gateway": "text",
+    "date": "date",
+    "missing_hours": "int",
+    "expected_attempts": "int"
+   },
+   "table": [
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 0,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 1,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 2,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 3,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 4,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 5,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 6,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 7,
+     "gateway": "PG_C",
+     "attempts": 0
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 8,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 9,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 10,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 11,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 12,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 13,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 14,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 15,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 16,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 17,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 18,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 19,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 20,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 21,
+     "gateway": "PG_C",
+     "attempts": 180
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 22,
+     "gateway": "PG_C",
+     "attempts": 120
+    },
+    {
+     "txn_date": "2026-11-16",
+     "txn_hour": 23,
+     "gateway": "PG_C",
+     "attempts": 120
+    }
+   ],
+   "chart": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Attempts by txn hour",
+    "width": 620,
+    "data": {
+     "values": [
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 0,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 1,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 2,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 3,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 4,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 5,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 6,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 7,
+       "gateway": "PG_C",
+       "attempts": 0,
+       "_label": "0"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 8,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 9,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 10,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 11,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 12,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 13,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 14,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 15,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 16,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 17,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 18,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 19,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 20,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 21,
+       "gateway": "PG_C",
+       "attempts": 180,
+       "_label": "180"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 22,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      },
+      {
+       "txn_date": "2026-11-16",
+       "txn_hour": 23,
+       "gateway": "PG_C",
+       "attempts": 120,
+       "_label": "120"
+      }
+     ]
+    },
+    "mark": {
+     "type": "line",
+     "point": true
+    },
+    "encoding": {
+     "x": {
+      "field": "txn_hour",
+      "type": "ordinal",
+      "title": "Txn hour"
+     },
+     "y": {
+      "field": "attempts",
+      "type": "quantitative",
+      "scale": {
+       "zero": false
+      },
+      "axis": {
+       "title": "Attempts",
+       "labelExpr": "format(datum.value, ',.0f')"
+      }
+     },
+     "tooltip": [
+      {
+       "field": "txn_hour",
+       "title": "Txn hour"
+      },
+      {
+       "field": "_label",
+       "title": "Attempts"
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "dq": [
+  {
+   "check": "missing_data",
+   "severity": "warn",
+   "message": "PG_C recorded no attempts on 16 Nov 2026 between 02:00 and 08:00 IST (6 hours; ~1,080 attempts expected from the prior 7 days). Rates for that day may be biased.",
+   "values": {
+    "gateway": "PG_C",
+    "date": "2026-11-16",
+    "missing_hours": 6,
+    "expected_attempts": 1080
+   }
+  }
+ ],
+ "drivers": {
+  "metric": "success_rate",
+  "r0": 0.928,
+  "r1": 0.917,
+  "delta": -0.01100000000000001,
+  "window": "last 7 days (13-19 Nov 2026)",
+  "baseline": "previous 7 days (6-12 Nov 2026)",
+  "dimensions": [
+   {
+    "dimension": "payment_method",
+    "r0": 0.928,
+    "r1": 0.917,
+    "delta": -0.01100000000000001,
+    "mix_total": -0.015999999999999966,
+    "rate_total": 0.0050000000000000044,
+    "mix_chi2_p": null,
+    "score": 0.93,
+    "simpson_flag": true,
+    "segments": [
+     {
+      "dimension": "payment_method",
+      "segment": "UPI",
+      "n0": 40000,
+      "n1": 60000,
+      "s0": 35200.0,
+      "s1": 53100.0,
+      "share0": 0.4,
+      "share1": 0.6,
+      "rate0": 0.88,
+      "rate1": 0.885,
+      "mix_effect": -0.008000000000000005,
+      "rate_effect": 0.0025000000000000022,
+      "total_effect": -0.005500000000000003,
+      "z": 2.409918427449233,
+      "p_value": 0.01595608761012321,
+      "q_value": 0.018615435545143746,
+      "supported": true,
+      "significant": true,
+      "material": true
+     },
+     {
+      "dimension": "payment_method",
+      "segment": "CARD",
+      "n0": 60000,
+      "n1": 40000,
+      "s0": 57600.0,
+      "s1": 38600.0,
+      "share0": 0.6,
+      "share1": 0.4,
+      "rate0": 0.96,
+      "rate1": 0.965,
+      "mix_effect": -0.00799999999999996,
+      "rate_effect": 0.0025000000000000022,
+      "total_effect": -0.005499999999999958,
+      "z": 4.0513176014614265,
+      "p_value": 0.00005093002019472757,
+      "q_value": 0.00008912753534077325,
+      "supported": true,
+      "significant": true,
+      "material": true
+     }
+    ],
+    "adtributor": []
+   },
+   {
+    "dimension": "gateway",
+    "r0": 0.928,
+    "r1": 0.917,
+    "delta": -0.01100000000000001,
+    "mix_total": 0.0,
+    "rate_total": -0.01100000000000001,
+    "mix_chi2_p": null,
+    "score": 0.21,
+    "simpson_flag": false,
+    "segments": [
+     {
+      "dimension": "gateway",
+      "segment": "PG_A",
+      "n0": 50000,
+      "n1": 50000,
+      "s0": 46450.0,
+      "s1": 45900.0,
+      "share0": 0.5,
+      "share1": 0.5,
+      "rate0": 0.929,
+      "rate1": 0.918,
+      "mix_effect": 0.0,
+      "rate_effect": -0.005500000000000005,
+      "total_effect": -0.005500000000000005,
+      "z": -6.543551458117834,
+      "p_value": 6.007480040021694e-11,
+      "q_value": 4.205236028015186e-10,
+      "supported": true,
+      "significant": true,
+      "material": true
+     },
+     {
+      "dimension": "gateway",
+      "segment": "PG_B",
+      "n0": 30000,
+      "n1": 30000,
+      "s0": 27810.0,
+      "s1": 27480.0,
+      "share0": 0.3,
+      "share1": 0.3,
+      "rate0": 0.927,
+      "rate1": 0.916,
+      "mix_effect": -0.0,
+      "rate_effect": -0.003300000000000003,
+      "total_effect": -0.003300000000000003,
+      "z": -5.009055187041379,
+      "p_value": 5.46978885405195e-7,
+      "q_value": 1.9144260989181827e-6,
+      "supported": true,
+      "significant": true,
+      "material": true
+     },
+     {
+      "dimension": "gateway",
+      "segment": "PG_C",
+      "n0": 20000,
+      "n1": 20000,
+      "s0": 18540.0,
+      "s1": 18320.0,
+      "share0": 0.2,
+      "share1": 0.2,
+      "rate0": 0.927,
+      "rate1": 0.916,
+      "mix_effect": -0.0,
+      "rate_effect": -0.002200000000000002,
+      "total_effect": -0.002200000000000002,
+      "z": -4.089876433897577,
+      "p_value": 0.00004316030621918232,
+      "q_value": 0.00008912753534077325,
+      "supported": true,
+      "significant": true,
+      "material": true
+     }
+    ],
+    "adtributor": []
+   }
+  ],
+  "top_dimension": "payment_method",
+  "simpson_flag": true,
+  "drilldown": [
+   {
+    "dims": {
+     "payment_method": "UPI",
+     "device": "android"
+    },
+    "effect": {
+     "dimension": "payment_method x device",
+     "segment": "UPI / android",
+     "n0": 28000,
+     "n1": 42000,
+     "s0": 24640.0,
+     "s1": 37170.0,
+     "share0": 0.28,
+     "share1": 0.42,
+     "rate0": 0.88,
+     "rate1": 0.885,
+     "mix_effect": -0.005600000000000003,
+     "rate_effect": 0.0017500000000000013,
+     "total_effect": -0.003850000000000002,
+     "z": 2.0162824154546333,
+     "p_value": 0.043770452625381484,
+     "q_value": 0.043770452625381484,
+     "supported": true,
+     "significant": true,
+     "material": true
+    }
+   },
+   {
+    "dims": {
+     "payment_method": "CARD",
+     "device": "web"
+    },
+    "effect": {
+     "dimension": "payment_method x device",
+     "segment": "CARD / web",
+     "n0": 24000,
+     "n1": 16000,
+     "s0": 23040.0,
+     "s1": 15440.0,
+     "share0": 0.24,
+     "share1": 0.16,
+     "rate0": 0.96,
+     "rate1": 0.965,
+     "mix_effect": -0.0031999999999999845,
+     "rate_effect": 0.0010000000000000009,
+     "total_effect": -0.0021999999999999837,
+     "z": 2.562278229069682,
+     "p_value": 0.010398797587093476,
+     "q_value": 0.014558316621930866,
+     "supported": true,
+     "significant": true,
+     "material": true
+    }
+   }
+  ],
+  "notes": [
+   "Gateway rates all fell by about the same amount: the mix shift sits inside every gateway, so gateway is not the driver."
+  ]
+ },
+ "recon": null,
+ "confidence": "medium",
+ "confidence_reasons": [
+  "Every number comes from the governed metric success_rate",
+  "Mix explains the move and both methods' rates rose significantly (Simpson's paradox)",
+  "Data-quality warning: PG_C is missing 6 hours on 16 Nov"
+ ],
+ "clarification": null,
+ "refusal": null,
+ "data_version": "v1 · seed 42",
+ "as_of": "2026-11-19",
+ "timings_ms": {
+  "plan": 2100,
+  "sql": 180,
+  "drivers": 40,
+  "narrate": 3200,
+  "total": 5600
+ },
+ "llm_usage": {
+  "backend": "fixture",
+  "model": "none",
+  "cost_usd": 0.0
+ },
+ "error": null
+}
