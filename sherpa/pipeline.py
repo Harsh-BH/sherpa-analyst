@@ -35,8 +35,12 @@ class _Run:
         self.timings: dict[str, int] = {}
         self.usage: dict[str, Any] = {}
 
-    def q(self, sql: str):
+    def q(self, sql: str, *, allow_truncated: bool = False):
         res = db.run_query(sql, self.persona)
+        if res.truncated and not allow_truncated:
+            # a cut-off breakdown silently drops groups (review R15); refuse rather than show a partial answer as complete
+            raise QueryRejected("cost", f"The result has more than {res.row_count:,} rows, so it would be cut off. "
+                                        "Narrow the window, add a filter or use fewer dimensions.", res.sql)
         self.timings["queries"] = self.timings.get("queries", 0) + 1
         self.timings["cache_hits"] = self.timings.get("cache_hits", 0) + int(res.cached)
         return res, res.df
@@ -191,7 +195,8 @@ def _explain_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter]):
     m = cat.metric(plan.metric)
     if m.type != "ratio":
         # Additive metrics: a change is the sum of segment changes; no mix/rate split needed.
-        _compare_evidence(r, plan.model_copy(update={"dimensions": plan.dimensions or ["payment_method"]}), filters)
+        default = next(d.name for d in cat.dimensions if d.driver and m.table in d.tables)
+        _compare_evidence(r, plan.model_copy(update={"dimensions": plan.dimensions or [default]}), filters)
         return None
     single = {f.dimension for f in filters if f.op == "in" and len(f.values) == 1}
     dims = plan.dimensions or [d.name for d in cat.dimensions if d.driver and m.table in d.tables and d.name not in single]
@@ -307,7 +312,7 @@ def _dq_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter], as_of) -> l
 
 
 def _sql_route_evidence(r: _Run, plan: AnalysisPlan) -> None:
-    res, df = r.q(plan.sql)
+    res, df = r.q(plan.sql, allow_truncated=True)
     values, formats = {}, {}
     num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     for i, row in df.head(20).iterrows():
@@ -315,7 +320,8 @@ def _sql_route_evidence(r: _Run, plan: AnalysisPlan) -> None:
             k = f"r{i + 1}_{drivers._keys({c: c})[c]}"
             values[k] = None if pd.isna(row[c]) else float(row[c])
             formats[k] = "pct" if ("rate" in c.lower() and abs(values[k] or 0) <= 1) else "float"
-    r.add(kind="breakdown", title="Result of model-written SQL (unverified)", sql=[res.sql], sql_hashes=[res.sql_hash],
+    title = "Result of model-written SQL (unverified" + (f", first {res.row_count:,} rows only)" if res.truncated else ")")
+    r.add(kind="breakdown", title=title, sql=[res.sql], sql_hashes=[res.sql_hash],
           tables=res.tables, row_count=res.row_count, values=values, formats=formats,
           table=df.head(200).astype(object).where(df.head(200).notna(), None).to_dict("records"))
 
@@ -407,6 +413,20 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
         base = None
         if plan.intent in _CHANGE_INTENTS:
             base = compiler.resolve_window(plan.baseline or compiler.default_baseline(win), as_of, data_start)
+            wlen, blen = (win.end - win.start).days + 1, (base.end - base.start).days + 1
+            if plan.baseline is None and blen != wlen:
+                # The data starts too late for a same-length comparison (review R13). Totals over different spans are not
+                # comparable; rates are, if we say so.
+                mdef = load_catalog().metric(plan.metric) if plan.metric else None
+                if mdef is None or mdef.type == "simple":
+                    bundle.status = "refused"
+                    bundle.refusal = Refusal(
+                        reason=f"Only {blen} day(s) of data exist before {win.label}, so a same-length comparison is not possible "
+                               f"for a total. Comparing {wlen} days with {blen} would show a fake jump.",
+                        suggestion="Pick a shorter window (for example the last 7 days), or compare a rate instead of a total.")
+                    return bundle
+                plan.assumptions.append(f"The comparison period is shortened to {base.label} ({blen} days) because the data starts "
+                                        f"on {data_start}. Rates are comparable across different lengths.")
         plan = plan.model_copy(update={"window": win, "baseline": base})
         bundle.plan, bundle.route = plan, plan.route
 

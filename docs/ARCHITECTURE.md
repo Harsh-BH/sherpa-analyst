@@ -91,6 +91,10 @@ plus a South-only offer; the DB backstop is tested separately.
 
 ## Known limits (be honest in README)
 
+- **Planner statistics are not row data, but they leak volume.** RLS hides rows, not `pg_class.reltuples` or EXPLAIN row
+  estimates, so a scoped persona with a direct DB login could infer per-region volume. Personas never get direct logins; the app
+  holds the credentials. A real fix needs per-region tables or partitions (review R11).
+
 Decomposition is association, not causation; cause mappings are always tagged *hypothesis*. The eval is
 partly circular, since we plant what we detect; mitigations are randomised parameters, two seeds and
 a naive baseline on the same data. Catalog coverage bounds the trusted route.
