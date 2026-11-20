@@ -618,3 +618,21 @@ def test_narrate_backstops_missing_dq_caveat(monkeypatch):
     monkeypatch.setattr(llm, "structured", structured)
     n, _ = N.narrate("Why?", plan(), ev, dq=[w])
     assert [c.text for c in n.claims].count("{E5.message}") == 1
+
+
+def test_template_breakdown_cites_share_keys():
+    rows = [{"segment": "M02001", "key": "M02001", "value": 3.44e7, "den": 55395},
+            {"segment": "M00309", "key": "M00309", "value": 7.03e6, "den": 873}]
+    vals = {"value": 1.431e8, "M02001_value": 3.44e7, "M02001_share": 0.24, "M00309_value": 7.03e6,
+            "M00309_share": 0.049}
+    fm = {k: ("pct" if k.endswith("share") else "inr") for k in vals}
+    ev = [E("E2", "breakdown", vals, fm, rows)]
+    _, checked = all_ok(N.template_narrative(plan(intent="breakdown", metric="gmv", dimensions=["merchant"],
+                                                  baseline=None), ev), ev)
+    assert any("M02001 has the highest GMV at ₹3.44 Cr, 24.0% of the total." in c.rendered for c in checked)
+    assert N.sanitize(ev)[0]["values"]["M02001_share"] == 0.24          # the narrator can cite it too
+    ev = [E("E2", "breakdown", {"UPI_value": 0.88, "UPI_den_share": 0.58}, {"UPI_value": "pct", "UPI_den_share": "pct"},
+            [{"segment": "UPI", "key": "UPI", "value": 0.88, "den": 50000}])]
+    _, checked = all_ok(N.template_narrative(plan(intent="breakdown", dimensions=["payment_method"], baseline=None),
+                                             ev), ev)
+    assert any("58.0% of payments" in c.rendered for c in checked)
