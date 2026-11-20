@@ -115,8 +115,8 @@ _MONTHS = "jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
 _NOT_DATA = re.compile(
     rf"\b\d{{4}}-\d{{2}}-\d{{2}}(?:[ T]\d{{2}}:\d{{2}})?\b"            # ISO dates / timestamps
     rf"|\b\d{{1,2}}:\d{{2}}\b"                                         # clock times
-    rf"|\b\d{{1,2}}(?:st|nd|rd|th)?[ -]+(?:{_MONTHS})[a-z]*\.?(?:,? \d{{4}})?"   # 19 Nov 2026
-    rf"|\b(?:{_MONTHS})[a-z]*\.? \d{{1,2}}(?:st|nd|rd|th)?\b(?:,? \d{{4}})?"     # Nov 19, 2026
+    rf"|\b(?:\d{{1,2}}\s*[–-]\s*)?\d{{1,2}}(?:st|nd|rd|th)?[ -]+(?:{_MONTHS})[a-z]*\.?(?:,? \d{{4}})?"   # (13–)19 Nov 2026
+    rf"|\b(?:{_MONTHS})[a-z]*\.? \d{{1,2}}(?:st|nd|rd|th)?(?:\s*[–-]\s*\d{{1,2}})?\b(?:,? \d{{4}})?"     # Nov 13(–19), 2026
     rf"|\b(?:0?[1-9]|1[0-2])-(?:0?[1-9]|[12]\d|3[01])\b"              # 11-19 (month-day)
     rf"|\b(?:19|20)\d{{2}}\b"                                          # years
     rf"|\b[A-Z]+_?\d+\b"                                               # ids: PG_A2, M01362

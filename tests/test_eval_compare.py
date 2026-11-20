@@ -67,6 +67,7 @@ def test_numbers_match_at_their_written_precision():
 
 
 def test_ranges_share_their_unit_and_month_day_dates_are_skipped():
+    assert numerals("Nov 13–19 vs 6–12 Nov 2026") == []
     assert [w for w, _ in numerals("volume 23–27K per day, TD 0.67–0.76%, data ends 11-19")] == \
         ["23K", "27K", "0.67%", "0.76%"]
     assert unsupported_numbers("about 23–27K a day", [23_419, 26_800]) == []
