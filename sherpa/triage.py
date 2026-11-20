@@ -130,14 +130,24 @@ def _from_ambiguities(plan: AnalysisPlan, cat: Catalog) -> list[ClarifyOption]:
     """Turn a planner-requested clarification into options we can apply without re-planning."""
     metrics = {m.name: m for m in cat.metrics}
     presets = get_args(WindowPreset)
+    owners: dict[str, list[str]] = {}            # closed-vocabulary value -> dimensions that have it
+    for d in cat.dimensions:
+        for v in d.values or []:
+            owners.setdefault(v, []).append(d.name)
     opts = []
     for a in plan.ambiguities:
+        if a.kind == "denominator":              # the pipeline settles this one by computing both readings
+            continue
         for o in a.options:
             if o in metrics:
                 opts.append(ClarifyOption(label=metrics[o].label, plan_patch={"metric": o, "route": "catalog"}))
             elif o in presets:
                 opts.append(ClarifyOption(label=o.replace("_", " "),
                                           plan_patch={"window": {"preset": o}, "route": "catalog"}))
+            elif len(owners.get(o, [])) == 1:
+                f = Filter(dimension=owners[o][0], values=[o])
+                opts.append(ClarifyOption(label=o, plan_patch={
+                    "filters": _filters_json([*plan.filters, f]), "route": "catalog"}))
     return opts
 
 

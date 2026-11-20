@@ -197,3 +197,14 @@ def test_clarification_round_trip_does_not_ask_again():
                                    "clarify_question": None})
     r = triage(back, "head")
     assert r.action == "proceed" and r.variant_metrics == [] and r.plan.metric == "success_rate_incl_dropoffs"
+
+
+def test_planner_clarify_with_dimension_values():
+    bank = Ambiguity(kind="dimension_value", description="which bank", options=["KESTREL", "HERON", "Nonsense"])
+    den = Ambiguity(kind="denominator", description="d", options=["success_rate", "success_rate_incl_dropoffs"])
+    plan = P(route="clarify", clarify_question="Which bank?", ambiguities=[bank.model_dump(), den.model_dump()])
+    r = triage(plan, "head")
+    assert [o.label for o in r.clarification.options] == ["KESTREL", "HERON"]   # denominator is not asked here
+    back = apply(plan, r.clarification.options[1]).model_copy(update={"ambiguities": [], "clarify_question": None})
+    ok = triage(back, "head")
+    assert ok.action == "proceed" and ok.plan.filters[0].dimension == "issuer_bank"
