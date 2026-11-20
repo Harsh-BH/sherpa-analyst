@@ -49,7 +49,11 @@ def run_baseline(case: Case, *, as_of: str) -> dict[str, Any]:
     t0, cost = time.perf_counter(), 0.0
     out: dict[str, Any] = {"sql": "", "text": "", "columns": [], "rows": [], "error": None}
     system = (f"You are a data analyst for a payments company. Today's date is {as_of}.\n"
-              f"Write one PostgreSQL query that answers the user's question, using these tables:\n\n{analytics_ddl()}")
+              f"Write one PostgreSQL query that answers the user's question, using these tables:\n\n{analytics_ddl()}\n\n"
+              # the execution constraints of the guarded DB it runs on (no semantic hints): without this line
+              # legit SQL fails on the guard and the baseline would be penalised for our safety layer
+              "The database runs exactly one read-only SELECT (CTEs allowed) over these analytics tables; "
+              "set-returning functions such as generate_series are not available.")
     data, usage = _structured(system=system, user=case["question"], schema=SQL_SCHEMA, model=settings().planner_model)
     cost += float(usage.get("cost_usd") or 0)
     out["sql"] = (data.get("sql") or "").strip()
