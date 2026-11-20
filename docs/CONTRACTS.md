@@ -131,8 +131,25 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
                        dq: list[DQWarning] = []) -> Narrative            # no-LLM fallback, same placeholder rules
 def check_claims(narrative: Narrative, evidence: list[Evidence]) -> tuple[str, list[CheckedClaim]]   # (rendered headline, claims)
 def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims: list[CheckedClaim],
-               dq: list[DQWarning], drivers: DriverReport | None) -> tuple[str, list[str]]
+               dq: list[DQWarning], drivers: DriverReport | None, *, dropped_claims: int = 0) -> tuple[str, list[str]]
+#   narrate() reports usage["dropped_claims"]; the pipeline passes it here.
 ```
+
+### Evidence value keys (what `{E<n>.<key>}` may cite)
+`segkey` = segment label sanitised by `drivers` (same function everywhere). Rates use `pct`, rate deltas `pp`, money `inr`, counts `int`.
+
+| kind | keys | table rows |
+|---|---|---|
+| metric | `value`, `num`, `den` | – |
+| breakdown | `value` (overall), `<segkey>_value`, `<segkey>_den` | `{segment, key, value, den}` |
+| trend | `first`, `last`, `change`, `min`, `max`, `min_at`, `max_at` (text) | `{bucket, value, den}` |
+| comparison | `r0`, `r1`, `delta`, `<segkey>_r0`, `<segkey>_r1`, `<segkey>_delta` | `{segment, key, r0, r1, delta, n0, n1}` |
+| decomposition / drilldown | as produced by `drivers.evidence_from_report` | rows carry `segment` + `key` |
+| segment_test (decline split) | `td_r0`, `td_r1`, `td_delta`, `bd_r0`, `bd_r1`, `bd_delta` | – |
+| reconciliation | `txn_gmv_inr`, `settled_net_inr`, `gap_inr`, `cutoff_timing`, `missing_transactions`, `refunds`, `fees`, `unexplained` | components |
+| dq_check (one per DQWarning) | the warning's `values` + text `check`, `severity` | – |
+
+Reserved keys that `check_claims` resolves on any evidence: `window`, `baseline`, `<segkey>_segment` (the `segment` of the row whose `key` is segkey).
 
 ## 5. ui agent
 
