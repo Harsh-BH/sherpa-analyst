@@ -260,6 +260,18 @@ def _dq_evidence(evidence: list[Evidence], w: DQWarning) -> Evidence | None:
          and "message" in e.values), None)
 
 
+def _trim(claims: list[Claim]) -> list[Claim]:
+    """At most MAX_CLAIMS: caveats (up to 3), then hypotheses/recommendations outrank the last facts.
+    DQ caveats come first among caveats so a data problem is never the one cut."""
+    caveats = sorted((c for c in claims if c.kind == "caveat"), key=lambda c: ".message}" not in c.text)[:3]
+    budget = MAX_CLAIMS - len(caveats)
+    others = [c for c in claims if c.kind in ("hypothesis", "recommendation")]
+    facts = [c for c in claims if c.kind == "fact"][:max(1, budget - len(others))]
+    keep = {id(c) for c in facts + others}
+    rest = [c for c in claims if id(c) in keep][:budget]
+    return rest + caveats
+
+
 def _parse(data: dict) -> Narrative:
     try:
         return Narrative.model_validate(data)
@@ -302,8 +314,14 @@ def narrate(question: str, plan: AnalysisPlan, evidence: list[Evidence], *, driv
             pass                                   # keep the first answer's passing claims
     kept = [Claim(kind=c.kind, text=c.text, evidence_ids=c.evidence_ids) for c in checked if c.ok]
     usage.update(dropped_claims=len(checked) - len(kept), repaired=repaired, calls=1 + repaired)
+    # Backstop: every warn/error DQ warning gets a caveat quoting its exact message, even if the model skipped it.
+    cited = {i for c in kept for i in c.evidence_ids}
+    for w in dq:
+        e = _dq_evidence(evidence, w)
+        if w.severity != "info" and e is not None and e.id not in cited:
+            kept.append(Claim(kind="caveat", text=_p(e, "message"), evidence_ids=[e.id]))
     return Narrative(headline=narrative.headline if headline != GENERIC_HEADLINE else GENERIC_HEADLINE,
-                     claims=kept[:MAX_CLAIMS]), usage
+                     claims=_trim(kept)), usage
 
 
 # ======================================================================== template (no LLM)
@@ -614,14 +632,7 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
             claims.append(Claim(kind="caveat", text=a))
     if any(_numerals(a) for a in plan.assumptions):
         claims.append(Claim(kind="caveat", text="The period or metric was interpreted; see the plan's assumptions."))
-    # Over MAX_CLAIMS: caveats (up to 3) and hypotheses/recommendations outrank the last-added facts.
-    caveats = [c for c in claims if c.kind == "caveat"][:3]
-    budget = MAX_CLAIMS - len(caveats)
-    others = [c for c in claims if c.kind in ("hypothesis", "recommendation")]
-    facts = [c for c in claims if c.kind == "fact"][:max(1, budget - len(others))]
-    keep = {id(c) for c in facts + others}
-    rest = [c for c in claims if id(c) in keep][:budget]
-    return Narrative(headline=headline or GENERIC_HEADLINE, claims=rest + caveats)
+    return Narrative(headline=headline or GENERIC_HEADLINE, claims=_trim(claims))
 
 
 # ======================================================================== confidence

@@ -595,3 +595,26 @@ def test_dq_message_passes_sanitize_and_is_cited():
     _, checked = all_ok(n, ev)
     cav = next(c for c in checked if c.kind == "caveat" and "PG_C" in c.rendered)
     assert cav.rendered == msg and cav.evidence_ids == ["E5"]
+
+
+def test_narrate_backstops_missing_dq_caveat(monkeypatch):
+    """S1 regression: seven good claims and no DQ caveat -> the warning's exact message is still shown."""
+    msg = "PG_C has no data on 16 Nov 02:00-08:00 IST"
+    w = DQWarning(check="missing_data", severity="error", message=msg)
+    ev = EV + [E("E5", "dq_check", {"check": "missing_data", "message": msg}, {"message": "text"})]
+    facts = [{"kind": "fact", "text": f"Fact {{E1.r{i % 2}}}.", "evidence_ids": ["E1"]} for i in range(5)]
+    structured, _ = fake({"headline": "SR fell to {E1.r1}", "claims": facts + [
+        {"kind": "hypothesis", "text": "Maybe mix.", "evidence_ids": ["E1"]},
+        {"kind": "recommendation", "text": "Ops: check.", "evidence_ids": []}]})
+    monkeypatch.setattr(llm, "structured", structured)
+    n, usage = N.narrate("Why?", plan(), ev, dq=[w])
+    _, checked = all_ok(n, ev)
+    assert len(checked) == N.MAX_CLAIMS and usage["dropped_claims"] == 0
+    assert checked[-1].kind == "caveat" and checked[-1].rendered == msg and checked[-1].evidence_ids == ["E5"]
+    assert [c.kind for c in checked].count("fact") == 4 and "hypothesis" in [c.kind for c in checked]
+    # already cited -> not duplicated
+    structured, _ = fake({"headline": "h {E1.r1}", "claims": [GOOD, {"kind": "caveat", "text": "{E5.message}",
+                                                                      "evidence_ids": ["E5"]}]})
+    monkeypatch.setattr(llm, "structured", structured)
+    n, _ = N.narrate("Why?", plan(), ev, dq=[w])
+    assert [c.text for c in n.claims].count("{E5.message}") == 1
