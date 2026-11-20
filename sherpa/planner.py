@@ -38,7 +38,8 @@ _PINNED = ("drop-off", "dropoff", "drop off", "abandon", "incl", "excl", "conver
 
 
 def preset_dates(as_of: date, data_start: date) -> dict[str, tuple[date, date]]:
-    """What each preset means today, clamped to the data range (mirrors compiler.resolve_window)."""
+    """What each preset means today, clamped to the data range; presets wholly outside it are left out.
+    Must agree with compiler.resolve_window (tests/test_planner.py checks)."""
     d = timedelta
     first = as_of.replace(day=1)
     lm_end = first - d(days=1)
@@ -55,7 +56,7 @@ def preset_dates(as_of: date, data_start: date) -> dict[str, tuple[date, date]]:
         "last_calendar_week": (week_end - d(days=6), week_end),
         "all_data": (data_start, as_of),
     }
-    return {k: (max(s, data_start), e) for k, (s, e) in raw.items()}
+    return {k: (max(s, data_start), e) for k, (s, e) in raw.items() if e >= data_start}
 
 
 @lru_cache(maxsize=1)

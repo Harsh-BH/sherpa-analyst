@@ -208,3 +208,27 @@ def test_planner_clarify_with_dimension_values():
     back = apply(plan, r.clarification.options[1]).model_copy(update={"ambiguities": [], "clarify_question": None})
     ok = triage(back, "head")
     assert ok.action == "proceed" and ok.plan.filters[0].dimension == "issuer_bank"
+
+
+def test_triaged_plans_compile():
+    """Whatever triage lets through, the compiler accepts (names canonical, values in vocabulary, windows set)."""
+    from datetime import date
+
+    from sherpa.compiler import compile_metric, default_baseline, resolve_window
+    from sherpa.config import load_catalog
+
+    as_of, start = date(2026, 11, 19), date(2026, 9, 21)
+    plans = [P(**vq.plan, question=vq.question) for vq in load_catalog().verified_queries]
+    plans += [P(intent="compare_periods", metric="SR", window={"preset": "last_14_days"}, dimensions=["bank"],
+                filters=[{"dimension": "method", "values": ["upi"]}, {"dimension": "txn_hour", "values": ["09"]}]),
+              P(intent="explain_change", window=None, filters=[{"dimension": "region", "values": ["south"]}])]
+    for p in plans:
+        r = triage(p, "rm_south" if "South" in str(p.filters) else "head")
+        assert r.action == "proceed", (p.question, r.clarification)
+        w = resolve_window(r.plan.window, as_of, start)
+        b = None
+        if r.plan.intent in ("compare_periods", "explain_change"):
+            b = resolve_window(r.plan.baseline or default_baseline(w), as_of, start)
+        sql = compile_metric(r.plan.metric, window=w, dimensions=r.plan.dimensions, filters=r.plan.filters,
+                             baseline=b, grain=r.plan.grain if r.plan.intent == "trend" else None)
+        assert sql.lstrip().upper().startswith(("SELECT", "WITH"))

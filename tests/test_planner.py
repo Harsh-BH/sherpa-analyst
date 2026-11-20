@@ -25,6 +25,7 @@ def test_preset_dates():
     # a Sunday as_of closes its own week; early as_of clamps to data_start
     assert planner.preset_dates(date(2026, 11, 15), START)["last_calendar_week"][1] == date(2026, 11, 15)
     assert planner.preset_dates(date(2026, 10, 1), START)["last_month"][0] == START
+    assert "last_month" not in planner.preset_dates(date(2026, 9, 25), START)   # August has no data
 
 
 def _walk(node):
@@ -139,3 +140,18 @@ def test_live_planner_out_of_scope():
     print("\nLIVE planner out-of-scope:", p.model_dump_json(exclude_defaults=True), usage,
           "\n  triage:", r.action, r.refusal)
     assert r.action == "refuse" and "North" in r.refusal.reason
+
+
+@pytest.mark.parametrize("as_of", [AS_OF, date(2026, 11, 15), date(2026, 10, 1), date(2026, 9, 25)])
+def test_preset_dates_match_compiler(as_of):
+    """The dates the planner is shown must be the dates the compiler will run."""
+    from sherpa.compiler import resolve_window
+    from sherpa.contracts import TimeWindow
+    shown = planner.preset_dates(as_of, START)
+    for preset in planner.PRESET_MEANING:
+        if preset in shown:
+            w = resolve_window(TimeWindow(preset=preset), as_of, START)
+            assert (w.start, w.end) == shown[preset], preset
+        else:
+            with pytest.raises(ValueError):
+                resolve_window(TimeWindow(preset=preset), as_of, START)
