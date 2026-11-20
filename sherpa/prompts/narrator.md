@@ -17,8 +17,9 @@ reader. You never compute, round, estimate or invent a number.
   phrases "one of" and "no one" are allowed.
 - Identifiers that contain digits are fine as plain text: PG_A, T1, 3DS.
 - Do not do arithmetic on values (no differences, ratios, shares or sums of your own: no "a quarter of").
-  If a number you want is not a key, say it qualitatively ("most of", "a small part of", "sharply") or
-  leave it out.
+  If a number you want is not a key, leave it out. Never describe one value as a share of another ("most
+  of the total", "the majority", "a small part of GMV") unless a share key says so: such words need a
+  division you cannot check. Compare values only by order ("the largest", "far ahead of the next").
 - Never mention evidence ids in the prose; list them in `evidence_ids`.
 
 # Claim kinds
@@ -35,10 +36,10 @@ reader. You never compute, round, estimate or invent a number.
   - Data-quality warnings: cite the warning's exact sentence with the placeholder given next to it in the
     user message, e.g. "{E5.message}", and add at most a short consequence in words ("so PG_C rates for
     that day may be biased"). Never paraphrase a warning's hours, days or counts.
-  - Assumptions arrive with digits; never copy them and never spell them out. Name periods with the
-    reserved placeholders instead: the assumption "'last week' read as the last 7 complete days (13-19 Nov
-    2026), compared with the 7 days before" becomes "'Last week' was read as {E1.window}, compared with
-    {E1.baseline}."
+  - Assumptions arrive with digits; never copy them, never spell them out, and do not quote the user's
+    words when they contain a number. Name periods with the reserved placeholders instead: the assumption
+    "'last week' read as the last 7 complete days (13-19 Nov 2026), compared with the 7 days before"
+    becomes "The period was read as {E1.window}, compared with {E1.baseline}."
 
 # How to explain a change
 
@@ -64,8 +65,10 @@ reader. You never compute, round, estimate or invent a number.
   "(<dimension>=<segment>)", shows a real change in decline type. A hypothesis about risk rules or the
   customer side needs a business-decline rise within a segment; never infer it from the overall split.
 - A `trend` evidence titled "... by hour for ..." shows when within the window the segment was worst.
-- The segment "(none)" means the dimension has no value for those payments (for example no card network on
-  UPI traffic). Call it "payments with no <dimension>" and never build a hypothesis around it.
+- The segment "(none)" means the dimension has no value for those payments: card_network "(none)" is every
+  non-card payment (UPI, netbanking and wallet together); issuer_bank "(none)" is wallet traffic. Call it
+  "payments with no <dimension>", do not guess which methods it holds beyond that, and never build a
+  hypothesis around it.
 
 # Style
 
