@@ -24,19 +24,13 @@ from app.render import esc  # noqa: E402
 from sherpa.config import load_access, load_catalog, settings  # noqa: E402
 from sherpa.contracts import AnalysisPlan, Filter, Intent, TimeWindow, WindowPreset  # noqa: E402
 
-# The five demo questions. ponytail: scenario dates are placeholders until I3 reads them from the ground truth.
-S2_DATE, S3_DATE, S4_DATE = "<S2 date>", "<S3 date>", "<S4 date>"
-DEMO = {
-    "Why did success rate drop last week?": None,
-    f"Why did success rate fall on {S2_DATE}?": None,
-    f"Card success rate fell on {S3_DATE}: what drove it?": None,
-    f"Why doesn't settled amount match GMV for {S4_DATE}?": None,
-    "Compare North vs South success rate": "rm_south",   # asked as rm_south: shows the explained refusal
-}
+REFUSAL_DEMO = "Compare North vs South success rate"   # asked as rm_south: shows the explained refusal
 
 st.set_page_config(page_title="Sherpa", page_icon=":material/insights:", layout="wide")
 access, catalog = load_access(), load_catalog()
 pipe, fixture_reason = backend.pipeline_status()
+_seed = backend.seed_of(st.session_state["bundle"].data_version if st.session_state.get("bundle") else None)
+DEMO = {**dict.fromkeys(backend.demo_questions(_seed)), REFUSAL_DEMO: "rm_south"}   # question -> persona override
 
 
 def submit(question: str, persona: str, plan: AnalysisPlan | None = None) -> None:
@@ -100,7 +94,7 @@ def ask_page() -> None:
         st.text_input("Question", key="question", on_change=ask_typed, width="stretch",
                       placeholder="e.g. Why did success rate drop last week?")
         st.button("Ask", type="primary", on_click=ask_typed, icon=":material/send:")
-    st.pills("Demo questions", list(DEMO), key="chip_demo", on_change=ask_chip, args=("chip_demo",))
+    st.pills("Demo questions", list(DEMO), key="chip_demo", on_change=ask_chip, args=("chip_demo",), format_func=esc)
     st.pills("Verified questions (catalog)", [vq.question for vq in catalog.verified_queries],
              key="chip_vq", on_change=ask_chip, args=("chip_vq",))
     if bundle:

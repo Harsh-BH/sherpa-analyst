@@ -117,7 +117,7 @@ def answered(b: AnswerBundle) -> None:
         st.dataframe(pd.DataFrame([{"component": c.name.replace("_", " "), "amount": format_value(c.amount_inr, "inr"),
                                     "note": c.note} for c in b.recon.components]), hide_index=True)
         st.caption(f"Source of truth: {esc(b.recon.source_of_truth)}")
-    evidence_panel(b.evidence)
+    evidence_panel(b.evidence, percent_metric=_is_percent(b.plan.metric if b.plan else None))
     st.download_button("Download run bundle", data=b.model_dump_json(indent=2), mime="application/json",
                        file_name=f"sherpa-run-{re.sub(r'[^A-Za-z0-9_.-]', '_', b.run_id)}.json",
                        icon=":material/download:")
@@ -177,14 +177,15 @@ def simpson_callout(b: AnswerBundle, dec: DimensionDecomposition) -> None:
 
 def _effects_df(effects: list[tuple[str, SegmentEffect]]) -> pd.DataFrame:
     return pd.DataFrame([{
-        "segment": label, "share before": e.share0, "share now": e.share1, "rate before": e.rate0, "rate now": e.rate1,
+        "segment": label, **{col: None if v is None else v * 100 for col, v in
+                             (("share before", e.share0), ("share now", e.share1), ("rate before", e.rate0), ("rate now", e.rate1))},
         "mix (pp)": e.mix_effect * 100, "rate (pp)": e.rate_effect * 100, "total (pp)": e.total_effect * 100,
         "z": e.z, "q (BH)": e.q_value, "supported": e.supported, "significant": e.significant, "material": e.material,
     } for label, e in effects])
 
 
 EFFECT_COLUMNS = {
-    **{c: st.column_config.NumberColumn(format="percent") for c in ("share before", "share now", "rate before", "rate now")},
+    **{c: st.column_config.NumberColumn(format="%.1f%%") for c in ("share before", "share now", "rate before", "rate now")},
     **{c: st.column_config.NumberColumn(format="%+.2f pp") for c in ("mix (pp)", "rate (pp)", "total (pp)")},
     "z": st.column_config.NumberColumn(format="%.2f"), "q (BH)": st.column_config.NumberColumn(format="%.2g"),
 }
@@ -227,7 +228,34 @@ def value_text(e: Evidence, key: str) -> str:
     return format_value(v, e.formats.get(key, "text" if isinstance(v, str) else "float"))
 
 
-def evidence_panel(evidence: list[Evidence]) -> None:
+def _is_percent(metric: str | None) -> bool:
+    try:
+        return load_catalog().metric(metric).format == "percent"
+    except KeyError:
+        return False
+
+
+def table_df(e: Evidence, percent_metric: bool = False) -> pd.DataFrame:
+    """Result table rendered like the claims. A column takes Evidence.formats[col] or the format of any
+    `<segkey>_<col>` key; failing that, 0..1 columns named *rate* (or `value` on a percent metric) are pct
+    and *_inr columns are inr. Non-numeric columns are left as they are."""
+    df = pd.DataFrame(e.table)
+    for col in df.columns:
+        name = str(col)
+        nums = pd.to_numeric(df[col], errors="coerce")
+        if df[col].dtype == bool or not nums.notna().all():
+            continue
+        fmt = e.formats.get(name) or next((f for k, f in e.formats.items() if k.endswith(f"_{name}")), None)
+        if fmt is None and ("rate" in name or (name == "value" and percent_metric)) and nums.between(0, 1).all():
+            fmt = "pct"
+        elif fmt is None and name.endswith("_inr"):
+            fmt = "inr"
+        if fmt and fmt not in ("text", "date"):
+            df[col] = [format_value(v, fmt) for v in nums]
+    return df
+
+
+def evidence_panel(evidence: list[Evidence], percent_metric: bool = False) -> None:
     if not evidence:
         return
     st.markdown("##### Evidence")
@@ -246,4 +274,4 @@ def evidence_panel(evidence: list[Evidence]) -> None:
                                                for k in e.values]), hide_index=True)
             if e.table:
                 st.caption(f"Result table ({len(e.table)} rows)")
-                st.dataframe(pd.DataFrame(e.table), hide_index=True)
+                st.dataframe(table_df(e, percent_metric), hide_index=True)

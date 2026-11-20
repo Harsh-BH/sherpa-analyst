@@ -4,9 +4,11 @@ The switch lives in pipeline_status() and nowhere else.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -22,10 +24,31 @@ FIXTURE_KEYWORDS = {
     "explain_change": "why drop dropped fall fell decline declined change changed drove driver drivers explain",
     "clarify": "what was yesterday",
     "refused": "compare north east west",
-    "sql_route": "merchant merchants most failed top",
+    "sql_route": "merchant merchants most failed top highest",
     "reconcile": "settled settlement settlements match gmv reconcile payout payouts",
 }
 REGIONS = {"north", "south", "east", "west"}
+# Demo chips: the planted scenarios' own questions (data/ground_truth_<seed>.json), placeholders until seeded.
+DEMO_SCENARIOS = ("S1", "S2", "S3", "S4", "S5b", "S6")
+DEMO_FALLBACK = ("Why did success rate drop last week?", "Why did success rate fall on <S2 date>?",
+                 "Card success rate fell on <S3 date>: what drove it?",
+                 "Why doesn't settled amount match GMV for <S4 date>?")
+
+
+def seed_of(data_version: str | None) -> int:
+    """'seed42-6f9d592f' (DB) or 'v1 · seed 42' -> 42; default 42."""
+    m = re.search(r"seed\s*(\d+)", data_version or "")
+    return int(m.group(1)) if m else 42
+
+
+@lru_cache(maxsize=4)
+def demo_questions(seed: int = 42) -> tuple[str, ...]:
+    try:
+        scenarios = json.loads((ROOT / "data" / f"ground_truth_{seed}.json").read_text())["scenarios"]
+        by_id = {s["id"]: s["question"] for s in scenarios if isinstance(s.get("question"), str)}
+    except (OSError, ValueError, KeyError, TypeError):
+        return DEMO_FALLBACK
+    return tuple(by_id[i] for i in DEMO_SCENARIOS if i in by_id) or DEMO_FALLBACK
 
 
 def pipeline_status() -> tuple[Any, str | None]:

@@ -73,6 +73,38 @@ def test_patched_resolves_the_plan():
     assert p.route == "catalog" and p.refuse_reason is None and p.filters[0].values == ["South"]
 
 
+@pytest.mark.parametrize("version,seed", [("seed42-6f9d592f", 42), ("v1 · seed 7", 7), (None, 42), ("v2", 42)])
+def test_seed_of(version, seed):
+    assert backend.seed_of(version) == seed
+
+
+def test_demo_questions_from_ground_truth(tmp_path, monkeypatch):
+    import json
+    (tmp_path / "data").mkdir()
+    scenarios = [{"id": i, "question": f"question {i}"} for i in ("S6", "S5a", "S5b", "S4", "S3", "S2", "S1")]
+    (tmp_path / "data" / "ground_truth_7.json").write_text(json.dumps({"scenarios": scenarios}))
+    monkeypatch.setattr(backend, "ROOT", tmp_path)
+    backend.demo_questions.cache_clear()
+    try:
+        assert backend.demo_questions(7) == tuple(f"question {i}" for i in ("S1", "S2", "S3", "S4", "S5b", "S6"))
+        assert backend.demo_questions(8) == backend.DEMO_FALLBACK          # no file for that seed
+    finally:
+        backend.demo_questions.cache_clear()
+
+
+def test_result_tables_render_like_claims():
+    from app.render import table_df
+    e1, e2, _ = backend.load_fixture("explain_change").evidence
+    assert table_df(e1)["rate"].tolist() == ["92.8%", "91.7%"]           # inferred: *rate* column in 0..1
+    t = table_df(e2)                                                       # matched via <segkey>_<col> formats
+    assert t["share0"].tolist() == ["40.0%", "60.0%"] and t["mix_effect"].tolist() == ["-0.80 pp", "-0.80 pp"]
+    recon = table_df(backend.load_fixture("reconcile").evidence[0])
+    assert recon["amount_inr"].iloc[0] == "₹4.20 L"
+    sql = table_df(backend.load_fixture("sql_route").evidence[0])
+    assert sql["display_name"].iloc[1] == INJECTION and sql["merchant_id"].iloc[0] == "M0042"   # text untouched
+    assert sql["failed"].iloc[0] == "812"                                  # `top_failed: int` matches column `failed`
+
+
 def test_esc_neutralises_markdown_html_and_directives():
     for s in (INJECTION, ":red[x] :material/home: $x^2$ <b>hi</b> ![i](http://e/x.png) www.evil.com"):
         out = esc(s)
