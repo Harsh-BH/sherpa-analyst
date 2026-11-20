@@ -10,7 +10,8 @@ import psycopg
 import pytest
 from psycopg import sql
 
-from gen.generate import build, create_database, verify
+from db import roles
+from gen.generate import SCHEMA_SQL, build, create_database, verify
 from sherpa.config import ROOT, load_access, load_catalog, settings
 
 pytestmark = pytest.mark.db
@@ -155,18 +156,95 @@ def _table_hashes(db):
     return out
 
 
-def test_same_seed_gives_identical_rows(tmp_path):
+@pytest.fixture
+def scratch():
+    """Empty scratch database with the schema; dropped afterwards. Never `sherpa`."""
     create_database(SCRATCH)
+    with admin(SCRATCH) as c:
+        c.execute(SCHEMA_SQL.read_text())
+    yield SCRATCH
+    with admin("postgres") as c:
+        c.autocommit = True
+        c.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(SCRATCH)))
+
+
+def test_same_seed_gives_identical_rows(tmp_path, scratch):
+    hashes = []
+    for i in range(2):   # separate processes: hash randomisation must not leak into the data
+        subprocess.run([sys.executable, "-m", "gen.generate", "--seed", "42", "--days", "3", "--db", scratch,
+                        "--truth", str(tmp_path / f"truth{i}.json")], check=True, cwd=ROOT, capture_output=True)
+        hashes.append(_table_hashes(scratch))
+    assert hashes[0] == hashes[1]
+    assert all(hashes[0].values())
+    assert (tmp_path / "truth0.json").read_bytes() == (tmp_path / "truth1.json").read_bytes()
+
+
+# ---------------------------------------------------------------- adversarial review regressions (db/roles.py)
+ALL_ROLES = [p.db_role for p in PERSONAS] + [ACCESS.app_role]
+
+
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_r1_r8_dangerous_functions_are_revoked(role):
+    with admin() as c:
+        allowed = [f for f in roles.REVOKED_FUNCTIONS
+                   if c.execute("SELECT has_function_privilege(%s, %s, 'EXECUTE')", (role, f"pg_catalog.{f}")).fetchone()[0]]
+    assert allowed == []
+    with as_role(role) as c:
+        c.execute("BEGIN READ WRITE")
+        for q in ("SELECT ('SELECT rolname::text FROM pg_roles').ts_stat",    # field-selection form from R1
+                  "SELECT (pg_backend_pid()).pg_cancel_backend",
+                  "SELECT ('server_version').current_setting",
+                  "SELECT lo_from_bytea(0, '\\x00'::bytea)"):                # R8: persistent write
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                c.execute(q)
+            c.execute("ROLLBACK")
+            c.execute("BEGIN READ WRITE")
+        c.execute("ROLLBACK")
+
+
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_r10_roles_connect_only_to_their_database(role):
+    db = settings().db_name
+    with admin() as c:
+        priv = lambda d, p: c.execute("SELECT has_database_privilege(%s, %s, %s)", (role, d, p)).fetchone()[0]  # noqa: E731
+        assert [(d, p) for d in ("postgres", "template1", db) for p in ("CONNECT", "TEMP") if priv(d, p)] == [(db, "CONNECT")]
+    s = settings()
+    with pytest.raises(psycopg.OperationalError, match="permission denied"):
+        psycopg.connect(dataclasses.replace(s, db_name="postgres").dsn(role), connect_timeout=3).close()
+
+
+def test_r9_reapplying_roles_wipes_settings_a_role_gave_itself(scratch):
+    roles.apply(scratch)
+    with admin(scratch) as c:   # what a persona or the app could do to itself with its own login
+        c.execute(f"ALTER ROLE sherpa_rm_south IN DATABASE {scratch} SET row_security = off")
+        c.execute(f"ALTER ROLE sherpa_rm_south IN DATABASE {scratch} SET default_transaction_read_only = off")
+        c.execute("ALTER ROLE sherpa_app SET work_mem = '8MB'")   # global; harmless if the test dies here
+    roles.apply(scratch)
+    with admin(scratch) as c:
+        rows = c.execute("SELECT r.rolname, s.setdatabase <> 0, s.setconfig FROM pg_db_role_setting s "
+                         "JOIN pg_roles r ON r.oid = s.setrole WHERE r.rolname = ANY(%s)", (ALL_ROLES,)).fetchall()
+    want = sorted(f"{k}={v.strip(chr(39))}" for k, v in roles.PERSONA_SETTINGS.items())
+    assert sorted((r, per_db, sorted(cfg)) for r, per_db, cfg in rows) == sorted(
+        (p.db_role, False, want) for p in PERSONAS)
+
+
+def test_r12_a_role_dropped_from_access_yaml_loses_login_and_grants(scratch):
+    stale = "sherpa_zz_stale"
+    with admin(scratch) as c:
+        c.execute(f"DROP ROLE IF EXISTS {stale}")
+        c.execute(f"CREATE ROLE {stale} LOGIN")
+        c.execute(f"GRANT CONNECT ON DATABASE {scratch} TO {stale}")
+        c.execute(f"GRANT USAGE ON SCHEMA analytics TO {stale}")
+        c.execute(f"GRANT SELECT ON analytics.data_version TO {stale}")
     try:
-        hashes = []
-        for i in range(2):   # separate processes: hash randomisation must not leak into the data
-            subprocess.run([sys.executable, "-m", "gen.generate", "--seed", "42", "--days", "3", "--db", SCRATCH,
-                            "--truth", str(tmp_path / f"truth{i}.json")], check=True, cwd=ROOT, capture_output=True)
-            hashes.append(_table_hashes(SCRATCH))
-        assert hashes[0] == hashes[1]
-        assert all(hashes[0].values())
-        assert (tmp_path / "truth0.json").read_bytes() == (tmp_path / "truth1.json").read_bytes()
+        roles.apply(scratch)
+        with admin(scratch) as c:
+            login, table, conn = c.execute(
+                "SELECT rolcanlogin, has_table_privilege(%s, 'analytics.data_version', 'SELECT'), "
+                "has_database_privilege(%s, %s, 'CONNECT') FROM pg_roles WHERE rolname = %s",
+                (stale, stale, scratch, stale)).fetchone()
+        assert (login, table, conn) == (False, False, False)
     finally:
-        with admin("postgres") as c:
-            c.autocommit = True
-            c.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(SCRATCH)))
+        with admin(scratch) as c:
+            c.execute(f"DROP OWNED BY {stale}")
+            c.execute(f"DROP ROLE {stale}")
