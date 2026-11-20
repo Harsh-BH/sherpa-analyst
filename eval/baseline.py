@@ -1,5 +1,6 @@
-"""The naive baseline: a typical "chat with your database" entry. One LLM call writes a query from the DDL,
-a second summarises the rows. No catalog, no planner, no checks on its prose.
+"""The naive baseline: a typical "chat with your database" entry. One LLM call writes a query from the DDL
+(one more, with the error, if the database rejects it), a final one summarises the rows. No catalog, no
+planner, no checks on its prose.
 
 Its SQL still runs through sherpa.db.run_query (guard, persona role, read-only, timeouts): we never execute
 unguarded SQL. That makes this baseline *safer* than real naive systems, which would run it as-is.
@@ -54,16 +55,23 @@ def run_baseline(case: Case, *, as_of: str) -> dict[str, Any]:
               # legit SQL fails on the guard and the baseline would be penalised for our safety layer
               "The database runs exactly one read-only SELECT (CTEs allowed) over these analytics tables; "
               "set-returning functions such as generate_series are not available.")
-    data, usage = _structured(system=system, user=case["question"], schema=SQL_SCHEMA, model=settings().planner_model)
-    cost += float(usage.get("cost_usd") or 0)
-    out["sql"] = (data.get("sql") or "").strip()
-    if out["sql"]:
+    user = case["question"]
+    for attempt in range(2):      # one repair round when the database rejects the query, as such tools do
+        data, usage = _structured(system=system, user=user, schema=SQL_SCHEMA, model=settings().planner_model)
+        cost += float(usage.get("cost_usd") or 0)
+        out["sql"], out["error"] = (data.get("sql") or "").strip(), None
+        if not out["sql"]:
+            break
         try:
             df = _run_query(out["sql"], case["persona"]).df
             out["columns"] = [str(c) for c in df.columns]
             out["rows"] = df.astype(object).where(df.notna(), None).values.tolist()
+            break
         except QueryRejected as e:
             out["error"] = f"{e.stage}: {e.reason}"
+            out["first_error"] = out.get("first_error") or out["error"]
+            user = (f"{case['question']}\n\nYour previous query was rejected by the database:\n{out['error']}\n\n"
+                    f"{out['sql']}\n\nWrite a corrected query.")
     if out["sql"] and out["error"] is None:
         shown = pd.DataFrame(out["rows"][:MAX_ROWS_SHOWN], columns=out["columns"]).to_csv(index=False)
         data, usage = _structured(
