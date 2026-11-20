@@ -120,6 +120,7 @@ def _scope_refusal(plan: AnalysisPlan, cat: Catalog, persona: str) -> TriageResu
     scoped.append(Filter(dimension="region", op="in", values=list(p.regions)))
     patch = {"filters": _filters_json(scoped), "route": "catalog", "refuse_reason": None,
              "assumptions": [*plan.assumptions, f"Limited to {mine}, the regions you can see."]}
+    refusal.plan_patch = patch
     return TriageResult("refuse", plan, refusal=refusal, clarification=Clarification(
         question=f"Answer for {mine} instead?",
         options=[ClarifyOption(label=f"Same question for {mine} only", plan_patch=patch)]))

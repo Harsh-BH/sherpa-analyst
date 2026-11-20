@@ -98,6 +98,7 @@ def test_out_of_scope_region_filter_refused_with_offer():
     assert r.action == "refuse"
     assert "North" in r.refusal.reason and "South" in r.refusal.reason and "Regional manager" in r.refusal.reason
     assert r.refusal.suggestion and "South" in r.refusal.suggestion
+    assert r.refusal.plan_patch == r.clarification.options[0].plan_patch
     offer = triage(apply(plan, r.clarification.options[0]), "rm_south")
     assert offer.action == "proceed"
     assert offer.plan.filters[0].values == ["South"]
@@ -135,7 +136,7 @@ def test_planner_refusal_for_other_reason_gets_no_scope_offer():
 
 def test_sql_route_out_of_scope_has_no_patch():
     r = triage(P(route="sql", sql="SELECT 1", question="North merchants with most refunds"), "rm_south")
-    assert r.action == "refuse" and r.clarification is None
+    assert r.action == "refuse" and r.clarification is None and r.refusal.plan_patch is None
 
 
 def test_default_windows():
@@ -186,3 +187,13 @@ def test_input_plan_not_mutated():
     plan = P(metric="SR", window=None)
     triage(plan, "head")
     assert plan.metric == "SR" and plan.window is None
+
+
+def test_clarification_round_trip_does_not_ask_again():
+    """The UI sends back the chosen plan with ambiguities cleared and route catalog."""
+    amb = Ambiguity(kind="denominator", description="d", options=["success_rate", "success_rate_incl_dropoffs"])
+    plan = P(route="clarify", clarify_question="Which?", ambiguities=[amb.model_dump()])
+    back = plan.model_copy(update={"metric": "success_rate_incl_dropoffs", "route": "catalog", "ambiguities": [],
+                                   "clarify_question": None})
+    r = triage(back, "head")
+    assert r.action == "proceed" and r.variant_metrics == [] and r.plan.metric == "success_rate_incl_dropoffs"
