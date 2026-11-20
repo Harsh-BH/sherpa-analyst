@@ -54,13 +54,14 @@ def _data_version() -> dict:
 
 # ---------------------------------------------------------------- running one case
 def run_sherpa(case: Case) -> dict[str, Any]:
-    """pipeline.answer; for a known-answer case that asks which definition, pick the one the gold query
-    uses (as a user would) and ask again."""
+    """pipeline.answer. When a known-answer or planted-cause case is answered with "which definition?", pick
+    the one the gold query uses (planted causes: the plan's own default) as a user would, and ask again.
+    The detail records the choice, so an unnecessary question stays visible."""
     plan = AnalysisPlan.model_validate(case["plan"]) if case.get("plan") else None
     b = _answer(case["question"], case["persona"], plan=plan)
     latency, cost, followup = b.timings_ms.get("total", 0), float(b.llm_usage.get("cost_usd") or 0), None
-    if case["kind"] == "known_answer" and b.status == "clarify" and b.clarification and b.plan:
-        want = case["expected"]["metric"]
+    if case["kind"] in ("known_answer", "planted_cause") and b.status == "clarify" and b.clarification and b.plan:
+        want = case["expected"].get("metric") or b.plan.metric
         opt = next((o for o in b.clarification.options if o.plan_patch.get("metric") == want), None)
         if opt:
             followup = opt.label
