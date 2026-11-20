@@ -126,32 +126,37 @@ _NUM = re.compile(r"(?<![\w.])[-+−]?(?:₹\s?)?(\d{1,3}(?:,\d{2,3})+|\d+)(?:\.
 _MULT = {"cr": 1e7, "crore": 1e7, "l": 1e5, "lakh": 1e5, "k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9}
 
 
-def numerals(text: str) -> list[tuple[str, list[float]]]:
-    """Numbers in free text (dates, times, years and ids removed) as (as written, readings it may mean)."""
+def numerals(text: str) -> list[tuple[str, list[tuple[float, float]]]]:
+    """Numbers in free text (dates, times, years and ids removed) as (as written, [(reading, tolerance)]).
+    A reading is what the numeral may mean as a raw value; the tolerance is half a unit of its last written
+    digit in that reading's scale ("0.9%" -> (0.009, 0.0005) and (0.9, 0.05))."""
     out = []
     for m in _NUM.finditer(_NOT_DATA.sub(" ", text)):
         x = float(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
+        half = 0.5 * 10 ** -len(m.group(2) or "")
         unit = (m.group(3) or "").lower()
         if unit in ("%", "pp") or unit.startswith("percentage"):
-            readings = [x / 100, x]           # 91.7% may be 0.917 or the value 91.7
+            readings = [(x / 100, half / 100), (x, half)]      # 91.7% may be 0.917 or the value 91.7
         elif unit:
-            readings = [x * _MULT[unit if unit in _MULT else unit[0]]]
+            k = _MULT[unit if unit in _MULT else unit[0]]
+            readings = [(x * k, half * k)]
         else:
-            readings = [x]
+            readings = [(x, half)]
         out.append((m.group(0).strip(), readings))
     return out
 
 
 def unsupported_numbers(text: str, values: list, allowed_text: str = "") -> list[str]:
-    """Numerals in `text` that match no value in `values` at 3 significant digits (sign ignored).
-    Numbers that also appear in `allowed_text` (the question) are not data claims."""
+    """Numerals in `text` that match no value in `values` (sign ignored) at the precision they are written
+    with, or at 3 significant digits, whichever is looser. Numbers that also appear in `allowed_text`
+    (the question, window labels) are not data claims."""
     nums = [abs(float(v)) for v in values if isinstance(v, (int, float, Decimal)) and not isinstance(v, bool)
             and not (isinstance(v, float) and math.isnan(v))]
-    allowed = {r for _, rs in numerals(allowed_text) for r in rs}
+    allowed = {r for _, rs in numerals(allowed_text) for r, _ in rs}
     bad = []
     for written, readings in numerals(text):
-        if any(r in allowed for r in readings):
+        if any(r in allowed for r, _ in readings):
             continue
-        if not any(_sig(r, 3) == _sig(n, 3) or abs(r - n) <= 5e-3 * max(r, n) for r in readings for n in nums):
+        if not any(abs(r - n) <= max(tol * (1 + 1e-9), 5e-3 * max(r, n)) for r, tol in readings for n in nums):
             bad.append(written)
     return bad

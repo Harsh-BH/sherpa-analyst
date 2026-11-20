@@ -58,3 +58,9 @@ def test_unsupported_numbers():
     values = [0.9167, -0.011, 123_456_789, 1233]
     text = "SR fell 1.10 pp to 91.7% over the last 7 days; GMV ₹12.35 Cr; 1,233 duplicates; 42% were UPI."
     assert unsupported_numbers(text, values, allowed_text="last 7 days") == ["42%"]
+
+
+def test_numbers_match_at_their_written_precision():
+    # 0.0087 renders as "0.9%" and -0.00673 as "-0.67 pp": correct roundings, fewer than 3 significant digits
+    assert unsupported_numbers("TD was 0.9%; SR fell -0.67 pp", [0.0087, -0.00673]) == []
+    assert unsupported_numbers("TD was 1.2%", [0.0087]) == ["1.2%"]
