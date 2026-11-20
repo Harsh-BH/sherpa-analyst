@@ -363,12 +363,12 @@ def test_template_data_quality_and_caveats():
     headline, checked = all_ok(N.template_narrative(p.model_copy(update={"assumptions": []}), ev), ev)
     assert headline == "No data-quality issues found"
     # DQ warning on another intent becomes a caveat; sql route adds one
-    p = plan(intent="metric_value", route="sql", sql="SELECT 1", assumptions=["Retries are attempt_no above one."])
+    p = plan(intent="metric_value", route="sql", sql="SELECT 1", assumptions=["Retries are repeat attempts."])
     ev = [E("E1", "metric", {"value": 0.1}, {"value": "pct"})]
     _, checked = all_ok(N.template_narrative(p, ev, dq=[w]), ev)
     caveats = [c.rendered for c in checked if c.kind == "caveat"]
     assert any("missing data" in c for c in caveats) and any("unverified" in c for c in caveats)
-    assert "Retries are attempt_no above one." in caveats
+    assert "Retries are repeat attempts." in caveats
 
 
 def test_template_missing_keys_falls_back():
@@ -398,8 +398,9 @@ def test_confidence_rules():
     level, reasons = N.confidence(p, "catalog", big, [cc()], [warn], None)
     assert level == "high" and "duplicates" in reasons[0]
     assert N.confidence(p, "catalog", big, [cc(), cc(False)], [], None)[0] == "medium"
-    small = [E("E1", "metric", {"value": 0.9, "den": 300}, {})]
-    assert N.confidence(p, "catalog", small, [cc()], [], None)[0] == "low"
+    pm = plan(intent="metric_value", baseline=None)
+    assert N.confidence(pm, "catalog", [E("E1", "metric", {"value": 0.9, "den": 300}, {})], [cc()], [], None)[0] == "low"
+    assert N.confidence(pm, "catalog", big, [cc()], [], None)[0] == "high"
     # a Simpson answer rests on the mix test; a rate answer needs a supported significant segment
     simp = simpson_report()
     assert N.confidence(p, "catalog", EV, [cc()], [], simp)[0] == "medium"          # no mix test recorded
@@ -444,14 +445,23 @@ def test_template_uses_decline_split_for_hypothesis():
     tech = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.0),
                    split_evidence("E9", "Technical vs business declines (issuer_bank=KESTREL)", 0.15, 0.01)]
     _, checked = all_ok(N.template_narrative(plan(), tech, drivers=r), tech)
-    split = next(c for c in checked if "Technical declines moved" in c.rendered)
+    split = next(c for c in checked if "technical declines moved" in c.rendered)
     assert split.evidence_ids == ["E9"] and "mostly technical" in split.rendered and "17.0%" in split.rendered
     assert any(c.kind == "hypothesis" and "outage" in c.rendered for c in checked)
-    biz = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.03)]
+    # a business-decline rise inside the driver segment supports a risk-rule hypothesis
+    biz = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.03),
+                  split_evidence("E9", "Technical vs business declines (issuer_bank=KESTREL)", 0.001, 0.05)]
     _, checked = all_ok(N.template_narrative(plan(), biz, drivers=r), biz)
     hyp = next(c for c in checked if c.kind == "hypothesis")
     assert "business declines" in hyp.rendered and "outage" in hyp.rendered.split("rather than")[1]
     assert any(c.kind == "recommendation" and c.rendered.startswith("Risk operations") for c in checked)
+    assert any(c.rendered.startswith("Within KESTREL, technical declines") for c in checked)
+    # an overall-only business-decline rise can be mix: no risk-rule story
+    mixy = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.03)]
+    _, checked = all_ok(N.template_narrative(plan(), mixy, drivers=r), mixy)
+    text = " ".join(c.rendered for c in checked)
+    assert "Risk operations" not in text and "may reflect the mix" in text
+    assert any(c.rendered.startswith("Overall, technical declines") and "mostly" not in c.rendered for c in checked)
 
 
 def test_template_hourly_fact_and_trimming():
@@ -519,3 +529,69 @@ def test_template_on_real_driver_evidence(scenario):
         assert "mix shifted" in headline and "Simpson" in text and "outage" not in text
     blob = json.dumps(N.sanitize(ev))
     assert N.REDACTED not in blob                       # closed-vocabulary evidence passes untouched
+
+
+# ---------------------------------------------------------------- integration review fixes (A-ai-5)
+def test_small_sample_uses_primary_measurement_only():
+    """S1 regression: tiny drill cells, segment rows or DQ counts must not make a 175k-payment answer 'low'."""
+    p = plan(assumptions=[])
+    r = rate_break_report()
+    ev = evidence_for(r)                                       # E1 n0/n1 ~100k; IBIS row has n < 1,000
+    ev.append(E("E7", "drilldown", {"x_n0": 12, "x_n1": 9}, {}))
+    ev.append(E("E8", "dq_check", {"check": "missing_data", "attempts": 0, "n": 3}, {}))
+    level, reasons = N.confidence(p, "catalog", ev, [cc()], [], r)
+    assert level == "high" and not any("small" in x for x in reasons)
+    tiny = [E("E1", "comparison", {"r0": 0.9, "r1": 0.8, "delta": -0.1, "n0": 400, "n1": 5000}, {})]
+    assert N.confidence(p.model_copy(update={"intent": "compare_periods"}), "catalog", tiny, [cc()], [], None)[0] == "low"
+    bd = plan(intent="breakdown", baseline=None, assumptions=[])
+    rows = [{"segment": f"M{i}", "key": f"M{i}", "value": 1e5, "den": 30} for i in range(200)]
+    assert N.confidence(bd, "catalog", [E("E1", "breakdown", {}, {"value": "inr"}, rows)], [cc()], [], None)[0] == "high"
+    assert N.confidence(bd, "catalog", [E("E1", "breakdown", {}, {"value": "pct"}, rows[:20])], [cc()], [],
+                        None)[0] == "low"
+
+
+def test_sanitize_keeps_additive_rows_and_suppresses_small_rates():
+    gmv = [{"segment": f"M{i:05d}", "key": f"M{i:05d}", "merchant": f"M{i:05d}", "value": 1e6 - i, "den": 50 + i}
+           for i in range(200)]
+    vals = {f"M{i:05d}_value": 1e6 - i for i in range(25)} | {f"M{i:05d}_den": 50 + i for i in range(25)}
+    fm = {k: ("inr" if k.endswith("value") else "int") for k in vals} | {"value": "inr"}
+    out = N.sanitize([E("E1", "breakdown", vals | {"value": 2e8}, fm, gmv)])[0]
+    assert len(out["table"]) == 25 and out["table"][0]["segment"] == "M00000" and "suppressed_rows" not in out
+    assert out["rows_omitted"] == 175 and len([k for k in out["values"] if k.endswith("_value")]) == 25
+    rate = [{"segment": "UPI", "key": "UPI", "value": 0.88, "den": 50000},
+            {"segment": "WALLET", "key": "WALLET", "value": 0.5, "den": 40}]
+    out = N.sanitize([E("E1", "breakdown", {"UPI_value": 0.88, "WALLET_value": 0.5},
+                        {"UPI_value": "pct", "WALLET_value": "pct", "value": "pct"}, rate)])[0]
+    assert [r["segment"] for r in out["table"]] == ["UPI"] and "WALLET_value" not in out["values"]
+
+
+@pytest.mark.parametrize("text", [
+    "PG_C ingested no data for one hour on one day", "about half of the drop", "TD rate doubled",
+    "seventy-five percent of payments", "a few thousand duplicates", "twice as many failures", "two lakh payments",
+    "grew by ten points", "the gap tripled"])
+def test_number_words_rejected(text):
+    _, [c] = check(text, kind="caveat", ids=())
+    assert not c.ok and "number outside a placeholder" in c.problems[0], text
+
+
+@pytest.mark.parametrize("text", ["UPI is one of the drivers", "no one segment explains it", "someone or anyone",
+                                  "the weaker banks", "On PG_A, T1 cities and 3DS flows", "one-off spike"[4:]])
+def test_allowed_phrases_pass(text):
+    assert check(text, kind="caveat", ids=())[1][0].ok, text
+
+
+def test_dq_message_passes_sanitize_and_is_cited():
+    msg = "PG_C recorded no attempts on 16 Nov 2026 between 02:00 and 08:00 IST (6 hours)."
+    w = DQWarning(check="missing_data", severity="error", message=msg, values={"gateway": "PG_C"})
+    dq_ev = E("E5", "dq_check", {"gateway": "PG_C", "check": "missing_data", "severity": "error", "message": msg},
+              {"gateway": "text", "check": "text", "severity": "text", "message": "text"})
+    assert N.sanitize([dq_ev])[0]["values"]["message"] == msg
+    # a free-text value of another evidence kind is still redacted
+    assert N.sanitize([E("E6", "breakdown", {"message": INJECTION}, {})])[0]["values"]["message"] == N.REDACTED
+    ev = EV + [dq_ev]
+    um = N.user_message("Why?", plan(), ev, simpson_report(), [w])
+    assert "-> cite as {E5.message}" in um and "only a within-segment split" in um
+    n = N.template_narrative(plan(), ev, drivers=simpson_report(), dq=[w])
+    _, checked = all_ok(n, ev)
+    cav = next(c for c in checked if c.kind == "caveat" and "PG_C" in c.rendered)
+    assert cav.rendered == msg and cav.evidence_ids == ["E5"]
