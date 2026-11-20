@@ -77,3 +77,27 @@ def test_nulls_and_freshness():
     ws = run_checks(daily, clean_hourly(), window=late, as_of=AS_OF)
     assert [w.check for w in ws] == ["freshness", "nulls"]      # days after as_of are not reported as gaps
     assert ws[0].values["days_missing"] == 2 and "37 non-wallet" in ws[1].message
+
+
+def test_low_volume_gap_is_one_run_and_quiet_hours_are_not_gaps():
+    # a filtered view: night hours usually see 2-7 attempts each, too few to judge one hour alone
+    hourly = clean_hourly().assign(attempts=lambda d: [max(1, SHAPE[h] // 8) + (i % 2)
+                                                       for i, h in enumerate(d["txn_hour"])])
+    d = hourly["txn_date"]
+    hourly.loc[(d == date(2026, 11, 16)) & (hourly["gateway"] == "PG_C") & hourly["txn_hour"].between(2, 7), "attempts"] = 0
+    hourly.loc[(d == date(2026, 11, 18)) & (hourly["gateway"] == "PG_A") & (hourly["txn_hour"] == 3), "attempts"] = 0
+    [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
+    assert w.values["hours"] == 6
+
+
+def test_south_sized_gap_keeps_its_full_range():
+    # one region (~1/4 of volume): PG_C's night hours usually see 5-6 attempts, hour 4 none at all
+    hourly = clean_hourly().assign(attempts=lambda d: [SHAPE[h] // 4 for h in d["txn_hour"]])
+    pgc, d, h = hourly["gateway"] == "PG_C", hourly["txn_date"], hourly["txn_hour"]
+    hourly.loc[pgc & (h == 4), "attempts"] = 0                                   # usually empty
+    hourly.loc[pgc & (h == 1), "attempts"] = 0                                   # usually empty, just before the gap
+    hourly.loc[pgc & (d == date(2026, 11, 16)) & h.between(2, 7), "attempts"] = 0
+    [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
+    assert w.values["hours"] == 6 and w.values["usual_attempts"] == 5 + 5 + 0 + 15 + 37 + 75   # hour 4 bridged
