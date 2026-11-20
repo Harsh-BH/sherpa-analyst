@@ -133,6 +133,25 @@ def test_output_columns_in_contract_order():
     assert "2026-11-06" in dq["hourly"]   # hourly reaches 7 days before the window
 
 
+def test_overlapping_baseline_is_refused():
+    """R14: overlapping rows would all count as 'current' and shrink or empty the baseline."""
+    w7 = resolve_window(TimeWindow(preset="last_7_days"), AS_OF, START)
+    mtd = resolve_window(TimeWindow(preset="month_to_date"), AS_OF, START)
+    for w, b in [(w7, mtd), (mtd, w7), (w7, w7)]:
+        with pytest.raises(ValueError, match="overlap"):
+            compile_metric("success_rate", window=w, baseline=b)
+    compile_metric("success_rate", window=w7, baseline=default_baseline(w7))   # adjacent is fine
+
+
+def test_hourly_grain_needs_txn_date():
+    """R17: cycle_date + txn_hour would label D-1 23:00 as D 23:00."""
+    w = resolve_window(TimeWindow(preset="yesterday"), AS_OF, START)
+    with pytest.raises(ValueError, match="Hourly grain"):
+        compile_metric("gmv_settlement_basis", window=w, grain="hour")
+    compile_metric("gmv_settlement_basis", window=w, grain="day")
+    compile_metric("gmv", window=w, grain="hour")
+
+
 def test_settlement_metrics_use_cycle_date():
     w = resolve_window(TimeWindow(preset="last_7_days"), AS_OF, START)
     assert "cycle_date BETWEEN" in compile_metric("gmv_settlement_basis", window=w)

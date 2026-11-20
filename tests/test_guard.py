@@ -74,6 +74,18 @@ ATTACKS = [
     ("unknown_column", "SELECT foo FROM transactions", "policy", "Column foo does not exist or is not visible"),
     ("unknown_qualified_column", "SELECT t.password FROM transactions t", "policy", "Column password does not exist"),
     ("unknown_table", "SELECT * FROM analytics.secrets", "policy", "Table secrets is not available"),
+    # adversarial review R1: Postgres field selection (expr).fname runs fname(expr)
+    ("field_sel_pg_sleep", "SELECT (2).pg_sleep FROM banks LIMIT 1", "policy", "Field selection (2).pg_sleep"),
+    ("field_sel_setting", "SELECT ('server_version').current_setting AS v FROM banks LIMIT 1", "policy",
+     "Field selection ('server_version').current_setting"),
+    ("field_sel_ts_stat", "SELECT ('SELECT to_tsvector(''simple'', string_agg(rolname, '' '')) FROM pg_roles').ts_stat"
+     " AS w FROM banks LIMIT 30", "policy", "Field selection"),
+    ("field_sel_cancel", "SELECT (22135).pg_cancel_backend FROM banks LIMIT 1", "policy", "Field selection"),
+    ("field_sel_userbyid", "SELECT (10).pg_get_userbyid AS u FROM banks", "policy", "Field selection"),
+    ("field_sel_row", "SELECT (b).bank_id FROM banks b", "policy", "Field selection"),
+    # R5: deep nesting must be a refusal, not a RecursionError
+    ("deep_nesting", "SELECT " + "(" * 400 + "txn_hour" + ")" * 400 + " AS x FROM transactions", "parse",
+     "nested too deeply"),
 ]
 
 
@@ -132,6 +144,15 @@ def test_limit_enforced():
     assert check_sql("SELECT txn_id FROM transactions LIMIT ALL", max_rows=100).sql.endswith("LIMIT 101")
     assert check_sql("SELECT txn_id FROM transactions FETCH FIRST 50 ROWS ONLY", max_rows=100).sql.endswith("50 ROWS ONLY")
     assert check_sql("SELECT bank_id FROM banks UNION SELECT txn_id FROM transactions", max_rows=7).sql.endswith("LIMIT 8")
+    # R3: WITH TIES / PERCENT can return more than n rows, so they get the hard LIMIT
+    ties = check_sql("SELECT txn_id FROM transactions ORDER BY region FETCH FIRST 1 ROWS WITH TIES", max_rows=100).sql
+    assert ties.endswith("LIMIT 101") and "WITH TIES" not in ties
+    pct = check_sql("SELECT txn_id FROM transactions FETCH FIRST 10 PERCENT ROWS ONLY", max_rows=100).sql
+    assert pct.endswith("LIMIT 101") and "PERCENT" not in pct
+
+
+def test_qualified_column_is_not_field_selection():
+    assert "analytics.banks" in check_sql("SELECT analytics.banks.bank_id FROM analytics.banks").sql
 
 
 def test_limit_all_at_default_max_rows():

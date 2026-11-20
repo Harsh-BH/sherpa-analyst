@@ -164,6 +164,9 @@ def compile_metric(metric: str, *, window: TimeWindow, dimensions: list[str] = [
     tcol = _time_col(cat, m)
     keys = [(exp.column(_dimension(cat, d, m.table).column), d) for d in dimensions]
     if baseline:
+        _between(tcol, window), _between(tcol, baseline)   # both must be resolved
+        if baseline.start <= window.end and window.start <= baseline.end:   # R14: overlap rows would all be 'current'
+            raise ValueError("The window and baseline overlap; pick a baseline that ends before the window starts.")
         period = (exp.Case().when(_between(tcol, window), exp.Literal.string("current"))
                   .when(_between(tcol, baseline), exp.Literal.string("baseline")))
         keys.append((period, "period"))
@@ -175,6 +178,8 @@ def compile_metric(metric: str, *, window: TimeWindow, dimensions: list[str] = [
     if grain:
         keys.append((exp.column(tcol), "bucket_date"))
     if grain == "hour":
+        if tcol != "txn_date":   # R17: txn_hour is a calendar hour, it does not line up with cycle_date
+            raise ValueError(f"Hourly grain needs a metric dated by txn_date; {m.name} is dated by {tcol}.")
         keys.append((exp.column(_dimension(cat, "txn_hour", m.table).column), "bucket_hour"))
     if m.type == "ratio":
         num, den = _measure(m.numerator), _measure(m.denominator)

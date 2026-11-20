@@ -95,8 +95,11 @@ def _table_name(t: exp.Table) -> str:
 
 def check_sql(sql: str, *, max_rows: int = MAX_ROWS) -> GuardResult:
     """Raises QueryRejected(stage="parse"|"policy"); returns the SQL that may execute."""
-    result = _check(sql, max_rows)
-    _check(result.sql, max_rows)   # the regenerated SQL must survive the same checks (round-trip)
+    try:
+        result = _check(sql, max_rows)
+        _check(result.sql, max_rows)   # the regenerated SQL must survive the same checks (round-trip)
+    except RecursionError:             # sqlglot recurses per nesting level (R5)
+        raise _reject("parse", "The SQL is nested too deeply.", sql) from None
     return result
 
 
@@ -149,6 +152,11 @@ def _check(sql: str, max_rows: int) -> GuardResult:
         if name not in ALLOWED_FUNCTIONS:
             shown = name if isinstance(node, exp.Anonymous) else node.sql(DIALECT).split("(")[0].lower()
             raise _reject("policy", f"Function {shown} is not allowed.", sql)
+    # Postgres field selection (expr).name calls name(expr) for any function name, bypassing the allowlist (R1).
+    # Qualified columns (analytics.banks.bank_id) parse as Column, never Dot.
+    dot = next(tree.find_all(exp.Dot), None)
+    if dot is not None:
+        raise _reject("policy", f"Field selection {dot.sql(DIALECT)} is not allowed.", sql)
     for dt in tree.find_all(exp.DataType):
         if dt.this not in ALLOWED_CAST_TYPES:
             raise _reject("policy", f"Cast to type {dt.sql(DIALECT)} is not allowed.", sql)
@@ -189,9 +197,12 @@ def _check(sql: str, max_rows: int) -> GuardResult:
             raise _reject("policy", f"Column {col} does not exist or is not visible.", sql) from None
         raise _reject("policy", f"The query could not be resolved: {str(e).split('. Line')[0]}.", sql) from None
 
-    # ---- LIMIT on the outermost query
+    # ---- LIMIT on the outermost query (FETCH ... WITH TIES / PERCENT can exceed n rows: treat as unlimited, R3)
     lim = tree.args.get("limit")
     n = lim.args.get("count") if isinstance(lim, exp.Fetch) else lim.expression if lim else None
+    opts = lim.args.get("limit_options") if isinstance(lim, exp.Fetch) else None
+    if opts and (opts.args.get("with_ties") or opts.args.get("percent")):
+        n = None
     if not (isinstance(n, exp.Literal) and n.is_int and int(n.name) <= max_rows):
         tree.set("limit", exp.Limit(expression=exp.Literal.number(max_rows + 1)))
 
