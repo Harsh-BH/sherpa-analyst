@@ -101,3 +101,22 @@ def test_south_sized_gap_keeps_its_full_range():
     [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
     assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
     assert w.values["hours"] == 6 and w.values["usual_attempts"] == 5 + 5 + 0 + 15 + 37 + 75   # hour 4 bridged
+
+
+def test_r22_multi_day_outage_is_reported_to_the_end():
+    hourly = clean_hourly()
+    dark = (hourly["gateway"] == "PG_C") & (hourly["txn_date"] >= date(2026, 11, 13))
+    [w] = run_checks(clean_daily(), hourly[~dark], window=WINDOW, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 13 Nov 00:00 – 20 Nov 00:00 IST." and w.values["hours"] == 7 * 24
+    # a window that starts inside a longer outage still sees it (the outage is not its own baseline)
+    late = TimeWindow(start=date(2026, 11, 17), end=AS_OF)
+    [w] = run_checks(clean_daily(), hourly[~dark & (hourly["txn_date"] >= date(2026, 11, 10))], window=late, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 17 Nov 00:00 – 20 Nov 00:00 IST."
+
+
+def test_r23_first_day_without_history_is_said_not_skipped():
+    hourly = clean_hourly()
+    first = hourly["txn_date"].min()
+    ws = run_checks(clean_daily(), hourly, window=TimeWindow(start=first, end=first + timedelta(days=2)), as_of=AS_OF)
+    assert [(w.check, w.severity) for w in ws] == [("missing_data", "info")]
+    assert ws[0].message == "Completeness of 6 Nov could not be checked: there is no earlier data to compare it with."

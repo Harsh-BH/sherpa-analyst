@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from sherpa.contracts import DimensionDecomposition, SegmentEffect
 from sherpa.drivers import NONE_LABEL, decompose, evidence_from_report, explain_change
 
 BANKS = ["KESTREL", "HERON", "OSPREY", "MYNA", "EGRET", "IBIS", "HORNBILL", "BULBUL", "SARUS", "DRONGO"]
@@ -224,3 +225,63 @@ def test_evidence_keys_and_formats():
     drill = ev[-1]
     assert any(k.startswith("HERON_") for k in drill.values)
     assert all({"issuer_bank", "card_network", "key"} <= set(r) for r in drill.table)
+
+
+# ---------------------------------------------------------------- adversarial review regressions
+def test_r18_noise_names_no_driver_and_no_simpson():
+    # shares wobble 50/50 -> 50.5/49.5 at flat rates: Δ is all mix, but nothing is significant
+    df = frame([("CARD", "baseline", 4_800, 5_000), ("UPI", "baseline", 4_400, 5_000),
+                ("CARD", "current", 4_848, 5_050), ("UPI", "current", 4_356, 4_950)])
+    dec = decompose(df, "seg")
+    assert dec.mix_chi2_p > 0.05 and abs(dec.mix_total - dec.delta) < 1e-12
+    assert not dec.simpson_flag                      # mix test not significant
+    rep = explain_change({"seg": df}, metric="success_rate", window="w", baseline="b")
+    assert rep.top_dimension is None and not rep.simpson_flag
+    assert "within noise" in rep.notes[0]
+
+
+def test_r19_simpson_needs_mix_in_the_direction_of_the_change():
+    from sherpa.drivers import _judge
+    s = lambda name, rate: SegmentEffect(dimension="X", segment=name, n0=5000, n1=5000, s0=1, s1=1, share0=.5,
+                                         share1=.5, rate0=.95, rate1=.95 + rate, mix_effect=0, rate_effect=rate / 2,
+                                         total_effect=rate / 2, p_value=0.3, supported=True, significant=False,
+                                         material=True)
+    dec = DimensionDecomposition(dimension="X", r0=.9, r1=.89875, delta=-0.00125, mix_total=0.00075,
+                                 rate_total=-0.002, mix_chi2_p=1e-9, score=0, simpson_flag=False,
+                                 segments=[s("A", -0.002), s("B", -0.002)])
+    assert not _judge(dec).simpson_flag              # mix pushed up while the rate fell
+    dec.mix_total, dec.rate_total = -0.00125, 0.0
+    assert _judge(dec).simpson_flag
+
+
+def test_r20_untested_segments_block_simpson():
+    # avg_ticket_size: UPI's ticket falls 500 -> 350 INR while volume shifts to UPI; sums cannot be z-tested
+    df = frame([("CARD", "baseline", 6_000_000, 3_000), ("UPI", "baseline", 1_500_000, 3_000),
+                ("CARD", "current", 4_000_000, 2_000), ("UPI", "current", 1_400_000, 4_000)])
+    dec = decompose(df, "seg")
+    assert dec.mix_total / dec.delta >= 0.5 and dec.mix_chi2_p < 1e-9
+    assert all(x.p_value is None for x in dec.segments)
+    assert not dec.simpson_flag
+
+
+def test_r24_adtributor_pick_stops_at_tep():
+    from sherpa.drivers import _adtributor_pick
+    dim = lambda name, rows: DimensionDecomposition(
+        dimension=name, r0=.9, r1=.9, delta=0, mix_total=0, rate_total=0, score=0, simpson_flag=False, segments=[],
+        adtributor=[{"segment": s, "ep": e, "surprise": su} for s, e, su in rows])
+    a = dim("A", [("a", 0.9, 0.010)])
+    b = dim("B", [("b1", 0.45, 0.005), ("b2", 0.35, 0.003), ("b3", 0.20, 0.0025)])   # summing all would give 0.0105
+    assert _adtributor_pick(a) == ("a", 0.010)
+    assert _adtributor_pick(b) == ("b1", pytest.approx(0.008))
+    assert _adtributor_pick(dim("C", [("c1", 0.3, 0.01), ("c2", 0.05, 0.02)])) == (None, 0.0)   # never reaches TEP
+
+
+def test_r18_noise_gate_looks_at_the_named_dimension_and_drill_cells():
+    from sherpa.drivers import _within_noise
+    flat = frame([("A", "baseline", 9_000, 10_000), ("B", "baseline", 8_000, 10_000),
+                  ("A", "current", 9_001, 10_000), ("B", "current", 7_999, 10_000)])
+    best = decompose(flat, "seg")                      # flat total, flat segments, no mix shift
+    cell = decompose(frame([("x", "baseline", 950, 1_000), ("x", "current", 850, 1_000)]), "seg")
+    assert cell.segments[0].significant
+    assert _within_noise(best, [])                     # a significant segment elsewhere is not passed in
+    assert not _within_noise(best, [cell])             # a sharp break in a drill cell is not noise

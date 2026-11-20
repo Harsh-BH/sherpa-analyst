@@ -82,19 +82,26 @@ def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
     days = pd.date_range(min(first, start - timedelta(days=7)), end).date
     grid = pd.MultiIndex.from_product([days, range(24), sorted(h["gateway"].unique())],
                                       names=["txn_date", "txn_hour", "gateway"])
-    att = h.groupby(["txn_date", "txn_hour", "gateway"])["attempts"].sum().reindex(grid, fill_value=0)
+    att = h.groupby(["txn_date", "txn_hour", "gateway"])["attempts"].sum().reindex(grid, fill_value=0).astype(float)
 
-    gaps = []
-    for d in pd.date_range(start, end).date:
+    gaps, out = [], []
+    for d in pd.date_range(first, end).date:     # days before the window too, so an earlier outage is known
         hist = [x for x in (d - timedelta(days=k) for k in range(1, 8)) if x >= first]
         if not hist:
+            if d >= start:
+                out.append(DQWarning(check="missing_data", severity="info", values={"date": d.isoformat()},
+                                     message=f"Completeness of {_d(d)} could not be checked: there is no earlier "
+                                             f"data to compare it with."))
             continue
         med = att.loc[hist].groupby(level=["txn_hour", "gateway"]).median()
         cur = att.loc[d]
         flagged = ((med > 0) & (cur < GAP_RATIO * med)) | ((med == 0) & (cur == 0))
-        gaps += [(gw, d, hr, int(cur[(hr, gw)]), float(med[(hr, gw)])) for hr, gw in flagged[flagged].index]
+        hits = [(gw, d, hr, int(cur[(hr, gw)]), float(med[(hr, gw)])) for hr, gw in flagged[flagged].index]
+        for gw, _, hr, _, usual in hits:      # an outage must not become its own baseline: later days see
+            att.loc[(d, hr, gw)] = usual      # a flagged hour at its usual volume
+        if d >= start:
+            gaps += hits
 
-    out = []
     gaps.sort(key=lambda g: (g[0], g[1], g[2]))
     runs: list[list[tuple]] = []
     for g in gaps:

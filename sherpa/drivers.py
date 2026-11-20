@@ -21,6 +21,7 @@ from .contracts import DimensionDecomposition, DrillCell, DriverReport, Evidence
 NONE_LABEL = "(none)"     # segment label for NULL dimension values (card_network on UPI, issuer on WALLET)
 DRILL_TOP = 5             # drill-down cells returned
 ADTRIBUTOR_TEEP = 0.1     # Adtributor's per-element explanatory-power threshold (Bhagwan et al. 2014)
+ADTRIBUTOR_TEP = 0.67     # ... and the explanatory power a dimension's candidate set must reach (paper's T_EP)
 PERIODS = ("baseline", "current")
 
 
@@ -34,7 +35,8 @@ def decompose(df: pd.DataFrame, dimension: str) -> DimensionDecomposition:
     and Σmix + Σrate == R1 - R0 exactly. A segment present in one period only takes the other period's
     rate, so its whole effect is mix. Each segment gets a two-proportion z-test when the numerator is a
     count of the denominator's rows (integral and 0 <= num <= den); sum numerators (avg_ticket_size) get
-    none. Standalone, `significant` uses raw p < FDR_Q; explain_change replaces it with BH q-values.
+    none. Standalone, `significant` and `mix_chi2_p` are raw; explain_change replaces both with BH-adjusted
+    values across every test in the report.
     """
     return _judge(_decompose(df, dimension))
 
@@ -125,7 +127,12 @@ def _judge(dec: DimensionDecomposition) -> DimensionDecomposition:
     d = dec.delta
     worse = [s for s in dec.segments if s.supported and s.significant and s.rate0 is not None
              and s.rate1 is not None and np.sign(s.rate1 - s.rate0) == np.sign(d)]
-    dec.simpson_flag = bool(d != 0 and abs(dec.mix_total) >= SIMPSON_MIX_SHARE * abs(d) and not worse)
+    # "nothing got worse, the mix changed" needs: mix pushing the same way as Δ and carrying >= half of it (R19),
+    # a mix shift that is itself significant (R18), and every supported segment tested, since an untested
+    # segment (sum numerators, avg_ticket_size) may well have got worse (R20)
+    untested = any(s.supported and s.p_value is None for s in dec.segments)
+    dec.simpson_flag = bool(d != 0 and dec.mix_total / d >= SIMPSON_MIX_SHARE and dec.mix_chi2_p is not None
+                            and dec.mix_chi2_p < FDR_Q and not untested and not worse)
     if d == 0:
         dec.score = 0.0
         return dec
@@ -164,9 +171,17 @@ def _js(predict, real):
 
 
 def _adtributor_pick(dec: DimensionDecomposition) -> tuple[str | None, float]:
-    """(most surprising element with EP > TEEP, summed surprise of all such elements)."""
-    cands = [a for a in dec.adtributor if a["ep"] > ADTRIBUTOR_TEEP]
-    return (cands[0]["segment"] if cands else None), sum(a["surprise"] for a in cands)
+    """Adtributor's candidate set for one dimension (Bhagwan et al. 2014, Algorithm 1): walk elements in
+    surprise order, keep those with EP > TEEP, stop once their EP sums past TEP. Returns (first element,
+    summed surprise), or (None, 0.0) when the set never reaches TEP."""
+    first, ep, surprise = None, 0.0, 0.0
+    for a in dec.adtributor:                      # already sorted by surprise, descending
+        if a["ep"] > ADTRIBUTOR_TEEP:
+            first = first or a["segment"]
+            ep, surprise = ep + a["ep"], surprise + a["surprise"]
+            if ep > ADTRIBUTOR_TEP:
+                return first, surprise
+    return None, 0.0
 
 
 # ---------------------------------------------------------------- the report
@@ -175,7 +190,8 @@ def explain_change(frames: dict[str, pd.DataFrame], *, metric: str, window: str,
     """Decompose every dimension, apply BH across every segment test in the report (drill cells
     included), rank dimensions by `score` (see _judge: the share of Δ the dimension explains through
     composition plus rate moves concentrated beyond volume share), and drill into caller-chosen pairs.
-    top_dimension is None when no dimension explains at least MIN_CONTRIBUTION of the move."""
+    top_dimension is None (with a note) when the change is within noise (_within_noise) or no dimension
+    explains at least MIN_CONTRIBUTION of the move."""
     if not frames:
         raise ValueError("explain_change needs at least one dimension frame")
     decs = [_decompose(df, dim) for dim, df in frames.items()]
@@ -189,27 +205,41 @@ def explain_change(frames: dict[str, pd.DataFrame], *, metric: str, window: str,
         cell_dims.update({c: {d1: a, d2: b} for c, a, b in zip(cell, v1, v2)})
         drill_decs.append(_decompose(df.assign(**{name: cell}), name))
 
+    # one BH family for every test in the report: segment z-tests and each dimension's mix chi-square
+    # (the best dimension is picked from many, so its raw mix p would over-read noise)
     tested = [s for dec in decs + drill_decs for s in dec.segments if s.p_value is not None]
-    if tested:
-        qs = multipletests([s.p_value for s in tested], method="fdr_bh")[1]
+    mixed = [dec for dec in decs + drill_decs if dec.mix_chi2_p is not None]
+    if tested or mixed:
+        qs = multipletests([s.p_value for s in tested] + [d.mix_chi2_p for d in mixed], method="fdr_bh")[1]
         for s, q in zip(tested, qs):
             s.q_value, s.significant = float(q), bool(q < FDR_Q)
+        for d, q in zip(mixed, qs[len(tested):]):
+            d.mix_chi2_p = float(q)          # BH-adjusted from here on, like the segments' q
     for dec in decs + drill_decs:
         _judge(dec)
 
     decs.sort(key=lambda d: -d.score)
     best = decs[0]
-    top = best.dimension if best.score >= MIN_CONTRIBUTION else None
     notes = []
+    if _within_noise(best, drill_decs):
+        top = None
+        for dec in decs:
+            dec.simpson_flag = False
+        notes.append("The change is within noise: neither the overall rate change, the mix shift nor any "
+                     "segment's own change is statistically significant, so no driver is named.")
+    else:
+        top = best.dimension if best.score >= MIN_CONTRIBUTION else None
     if top is None:
-        notes.append("No dimension explains the change: it is spread evenly across every breakdown tried.")
+        notes = notes or ["No dimension explains the change: it is spread evenly across every breakdown tried."]
     else:
         seg = best.segments[0].segment
         ad_seg, _ = _adtributor_pick(best)
-        ad_dim = max(decs, key=lambda d: _adtributor_pick(d)[1]).dimension
+        picks = {d.dimension: _adtributor_pick(d) for d in decs}
+        ad_dim = max((d for d in picks if picks[d][0]), key=lambda d: picks[d][1], default=None)
         notes.append(f"Adtributor cross-check {'agrees' if ad_seg == seg else 'disagrees'} on the top segment of "
-                     f"{top}: decomposition {seg!r}, Adtributor {ad_seg!r}; Adtributor's most surprising "
-                     f"dimension is {ad_dim}{' (same)' if ad_dim == top else ''}.")
+                     f"{top}: decomposition {seg!r}, Adtributor {ad_seg!r}; "
+                     + (f"Adtributor's most surprising dimension is {ad_dim}{' (same)' if ad_dim == top else ''}."
+                        if ad_dim else "Adtributor finds no dimension whose elements explain the change."))
 
     cells = sorted((s for dec in drill_decs for s in dec.segments), key=lambda s: -abs(s.total_effect))
     return DriverReport(
@@ -218,6 +248,20 @@ def explain_change(frames: dict[str, pd.DataFrame], *, metric: str, window: str,
         drilldown=[DrillCell(dims=cell_dims[s.segment], effect=s) for s in cells[:DRILL_TOP]],
         notes=notes,
     )
+
+
+def _within_noise(best: DimensionDecomposition, drill_decs: list[DimensionDecomposition]) -> bool:
+    """Count metrics only: the overall two-proportion test, the best dimension's mix test and the BH-adjusted
+    tests of the best dimension's segments and of the drill cells are all non-significant. The segment clause
+    keeps a sharp local break (one issuer x network cell on a day) from being called noise when it barely moves
+    the total; a significant segment in some *other* dimension does not make the named one an explanation."""
+    if all(s.p_value is None for s in best.segments):
+        return False
+    s0, n0 = sum(s.s0 for s in best.segments), sum(s.n0 for s in best.segments)
+    s1, n1 = sum(s.s1 for s in best.segments), sum(s.n1 for s in best.segments)
+    _, p = _ztest(s1, n1, s0, n0)
+    return (p >= FDR_Q and (best.mix_chi2_p is None or best.mix_chi2_p >= FDR_Q)
+            and not any(s.significant for d in [best, *drill_decs] for s in d.segments))
 
 
 # ---------------------------------------------------------------- evidence
