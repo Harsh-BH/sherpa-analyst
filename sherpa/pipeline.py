@@ -342,9 +342,16 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
     if change:
         # Ask only when the readings tell different stories: opposite directions, or material under one and not the other.
         # Two drops of different size answer "why did it drop?" the same way, so we state the assumption instead.
-        def story(v: float) -> int:
-            return 0 if abs(v) < MIN_RATE_DELTA else (1 if v > 0 else -1)
-        agree = len({story(v) for v in vals}) <= 1
+        # Different stories: opposite directions (both clearly non-zero), or one material while the other is flat.
+        # The half-threshold dead zone keeps a -0.59 pp vs -0.27 pp pair (both "a drop") from flipping on a 0.3 pp edge.
+        flat, material = MIN_RATE_DELTA / 2, MIN_RATE_DELTA
+
+        def differ(a: float, b: float) -> bool:
+            if abs(a) >= flat and abs(b) >= flat and (a > 0) != (b > 0):
+                return True
+            return max(abs(a), abs(b)) >= material and min(abs(a), abs(b)) < flat
+
+        agree = not any(differ(a, b) for i, a in enumerate(vals) for b in vals[i + 1:])
     else:
         agree = len(vals) < 2 or max(vals) - min(vals) <= AMBIGUITY_THRESHOLD
     if agree or plan.intent not in (*_CHANGE_INTENTS, "metric_value"):
