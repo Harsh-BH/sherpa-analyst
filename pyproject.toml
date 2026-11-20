@@ -25,6 +25,7 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q -m 'not live'"
 markers = [
     "db: needs the seeded Postgres on SHERPA_DB_PORT (skipped automatically when it is down or empty)",
