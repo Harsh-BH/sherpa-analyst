@@ -44,6 +44,7 @@ ALLOWED_FUNCTIONS = frozenset({
     # aggregates
     "count", "sum", "avg", "min", "max", "stddev", "stddev_samp", "stddev_pop", "variance",
     "variance_pop", "percentile_cont", "percentile_disc", "logical_and", "logical_or", "corr",
+    "group_concat", "string_agg", "array_agg",
     # window
     "row_number", "rank", "dense_rank", "percent_rank", "cume_dist", "ntile", "lag", "lead",
     "first_value", "last_value", "nth_value",

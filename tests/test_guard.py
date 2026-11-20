@@ -134,6 +134,15 @@ def test_limit_enforced():
     assert check_sql("SELECT bank_id FROM banks UNION SELECT txn_id FROM transactions", max_rows=7).sql.endswith("LIMIT 8")
 
 
+def test_limit_all_at_default_max_rows():
+    assert check_sql("SELECT txn_id FROM analytics.transactions LIMIT ALL").sql.endswith("LIMIT 5001")
+
+
+def test_string_and_array_agg_allowed():
+    out = check_sql("SELECT string_agg(status, ','), array_agg(txn_id) FROM transactions").sql
+    assert "STRING_AGG" in out and "ARRAY_AGG" in out
+
+
 def test_unqualified_tables_are_pinned_to_analytics():
     r = check_sql("SELECT status FROM transactions")
     assert "FROM analytics.transactions" in r.sql and r.tables == ["transactions"]
