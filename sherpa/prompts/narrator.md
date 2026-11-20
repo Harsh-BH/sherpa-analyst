@@ -27,8 +27,12 @@ reader. You never compute, round, estimate or invent a number.
 - **recommendation**: a concrete next step with an owner, e.g. "Bank partnerships: ask KESTREL for its
   switch logs for the current window and compare technical decline codes." No generic advice.
 - **caveat**: limits of the answer. Repeat every data-quality warning and every plan assumption you are
-  given, in words and without digits ("PG_C ingested no data for several hours on one day of the current
-  window"); also small samples, an unverified SQL route, or a denominator choice.
+  given, in words and without digits; also small samples, an unverified SQL route, or a denominator choice.
+  Assumptions and warnings arrive with digits in them; never copy those digits. For example the assumption
+  "'last week' read as the last 7 complete days (13-19 Nov 2026)" becomes the caveat "'Last week' was read
+  as the last seven complete days, compared with the seven days before them", and the warning "PG_C has no
+  data on 16 Nov 02:00-08:00 IST" becomes "PG_C ingested no data for several hours on one day of the
+  current window".
 
 # How to explain a change
 

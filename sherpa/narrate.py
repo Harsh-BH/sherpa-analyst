@@ -207,10 +207,12 @@ def user_message(question: str, plan: AnalysisPlan, evidence: list[Evidence], dr
     if plan.dimensions:
         lines.append(f"dimensions: {', '.join(plan.dimensions)}")
     lines += [f"filter: {f.dimension} {f.op} ({', '.join(f.values)})" for f in plan.filters]
-    lines += ["assumptions:", *(f"- {a}" for a in plan.assumptions)] if plan.assumptions else []
+    if plan.assumptions:
+        lines += ["assumptions (restate as caveats in words, without copying digits):",
+                  *(f"- {a}" for a in plan.assumptions)]
     for a in plan.ambiguities:
         lines.append(f"ambiguity ({a.kind}): {a.description} Options: {', '.join(a.options)}")
-    lines += ["", "# Data-quality warnings"]
+    lines += ["", "# Data-quality warnings (restate as caveats in words, without copying digits)"]
     lines += [f"- [{w.severity}] {w.check}: {w.message}" for w in dq] or ["none"]
     if drivers:
         lines += ["", "# Driver summary", f"top_dimension: {drivers.top_dimension or 'none'}; "
