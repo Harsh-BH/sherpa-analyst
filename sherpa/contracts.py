@@ -340,6 +340,7 @@ class Clarification(BaseModel):
 class Refusal(BaseModel):
     reason: str
     suggestion: str | None = None
+    plan_patch: dict[str, Any] | None = None   # merged into the plan if the user accepts the suggestion (same rule as ClarifyOption)
 
 
 class AnswerBundle(BaseModel):
@@ -360,8 +361,9 @@ class AnswerBundle(BaseModel):
     clarification: Clarification | None = None
     refusal: Refusal | None = None
     data_version: str | None = None
+    as_of: date | None = None
     timings_ms: dict[str, int] = {}
-    llm_usage: dict[str, Any] = {}
+    llm_usage: dict[str, Any] = {}       # {"backend": str, "cost_usd": float, "planner": {...usage}, "narrator": {...usage}}
     error: str | None = None
 
 
