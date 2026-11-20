@@ -1,0 +1,172 @@
+"""Seeded-database checks: access control matches access.yaml, the ground truth reproduces, the data is
+calibrated and deterministic. Reads `sherpa`; writes only the scratch database `sherpa_test`."""
+import dataclasses
+import json
+import subprocess
+import sys
+from datetime import timedelta
+
+import psycopg
+import pytest
+from psycopg import sql
+
+from gen.generate import build, create_database, verify
+from sherpa.config import ROOT, load_access, load_catalog, settings
+
+pytestmark = pytest.mark.db
+ACCESS = load_access()
+PERSONAS = list(ACCESS.personas.values())
+REGION_TABLES = [t for t, cols in ACCESS.exposed_tables.items() if "region" in cols]
+SCRATCH = "sherpa_test"
+
+
+def admin(db=None):
+    s = settings()
+    return psycopg.connect(dataclasses.replace(s, db_name=db or s.db_name).admin_dsn())
+
+
+def as_role(role):
+    return psycopg.connect(settings().dsn(role), autocommit=True)
+
+
+def test_one_data_version_row():
+    with admin() as c:
+        assert c.execute("SELECT count(*) FROM analytics.data_version").fetchone()[0] == 1
+
+
+# ---------------------------------------------------------------- access control (db/roles.py)
+def test_column_grants_equal_access_yaml():
+    want = {(t, col) for t, cols in ACCESS.exposed_tables.items() for col in cols}
+    with admin() as c:
+        for p in PERSONAS:
+            rows = c.execute("SELECT table_schema, table_name, column_name, privilege_type "
+                             "FROM information_schema.column_privileges WHERE grantee = %s", (p.db_role,)).fetchall()
+            assert {(t, col) for _, t, col, _ in rows} == want, p.name
+            assert {(s, priv) for s, _, _, priv in rows} == {("analytics", "SELECT")}, p.name
+            assert c.execute("SELECT count(*) FROM information_schema.table_privileges WHERE grantee = %s",
+                             (p.db_role,)).fetchone()[0] == 0, f"{p.name} has a table-level grant"
+        app = c.execute("SELECT table_schema, table_name, privilege_type FROM information_schema.table_privileges "
+                        "WHERE grantee = %s", (ACCESS.app_role,)).fetchall()
+        assert set(app) == {("app", "runs", "INSERT"), ("app", "runs", "SELECT")}
+        assert c.execute("SELECT count(*) FROM information_schema.column_privileges WHERE grantee = 'PUBLIC' "
+                         "AND table_schema IN ('raw', 'analytics', 'app')").fetchone()[0] == 0
+
+
+def test_every_region_table_forces_rls():
+    with admin() as c:
+        rows = c.execute(
+            "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity FROM information_schema.columns ic "
+            "JOIN pg_namespace n ON n.nspname = ic.table_schema "
+            "JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = ic.table_name "
+            "WHERE ic.table_schema = 'analytics' AND ic.column_name = 'region'").fetchall()
+    assert {r[0] for r in rows} == set(REGION_TABLES)
+    assert all(r[1] and r[2] for r in rows), rows
+
+
+@pytest.mark.parametrize("persona", PERSONAS, ids=lambda p: p.name)
+def test_persona_sees_only_its_regions(persona):
+    with as_role(persona.db_role) as c:
+        for t in REGION_TABLES:
+            got = {r[0] for r in c.execute(f"SELECT DISTINCT region FROM analytics.{t}")}
+            assert got == set(persona.regions), (persona.name, t, got)
+
+
+@pytest.mark.parametrize("persona", PERSONAS, ids=lambda p: p.name)
+def test_persona_cannot_read_raw_or_app_or_write(persona):
+    with as_role(persona.db_role) as c:
+        assert c.execute("SHOW default_transaction_read_only").fetchone()[0] == "on"
+        assert c.execute("SHOW statement_timeout").fetchone()[0] == "5s"
+        assert c.execute("SHOW search_path").fetchone()[0] == "analytics"
+        for q in ("SELECT count(*) FROM raw.transaction_events", "SELECT count(*) FROM raw.merchants",
+                  "SELECT count(*) FROM app.runs"):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                c.execute(q)
+        c.execute("BEGIN READ WRITE")   # even with the read-only default switched off, grants refuse writes
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            c.execute("INSERT INTO analytics.banks (bank_id, name, bank_type) VALUES ('X', 'X', 'X')")
+        c.execute("ROLLBACK")
+
+
+def test_values_equal_the_catalog_vocabularies():
+    with admin() as c:
+        for d in load_catalog().dimensions:
+            if d.values and "transactions" in d.tables:
+                got = {str(r[0]) for r in c.execute(f"SELECT DISTINCT {d.column} FROM analytics.transactions "
+                                                    f"WHERE {d.column} IS NOT NULL")}
+                assert got == set(d.values), d.name
+
+
+# ---------------------------------------------------------------- ground truth and calibration
+@pytest.fixture(scope="module")
+def truth():
+    with admin() as c:
+        seed, start, as_of = c.execute("SELECT seed, data_start, as_of FROM analytics.data_version").fetchone()
+    _, t = build(seed, (as_of - start).days + 1)
+    path = ROOT / "data" / f"ground_truth_{seed}.json"
+    if path.exists():
+        assert json.loads(path.read_text()) == json.loads(json.dumps(t)), f"{path} is stale: re-run make seed"
+    return t
+
+
+def test_ground_truth_reproduces_against_the_db(truth):
+    with admin() as c, c.cursor() as cur:
+        assert verify(cur, truth) == []
+    ids = {s["id"] for s in truth["scenarios"]}
+    assert ids == {"S1", "S2", "S3", "S4", "S5a", "S5b", "S6"}
+    s1 = next(s for s in truth["scenarios"] if s["id"] == "S1")
+    assert s1["expected"]["simpson"] and s1["expected"]["direction"] == "down"
+    assert 0.43 <= s1["facts"]["upi_share_baseline"] <= 0.47 and 0.55 <= s1["facts"]["upi_share_current"] <= 0.61
+
+
+def test_verify_catches_a_wrong_truth(truth):
+    bad = json.loads(json.dumps(truth))
+    s4 = next(s for s in bad["scenarios"] if s["id"] == "S4")
+    s4["expected"]["refunds"] += 1.0
+    with admin() as c, c.cursor() as cur:
+        assert any(m.startswith("S4 refunds") for m in verify(cur, bad))
+
+
+def test_calibration_in_a_quiet_week(truth):
+    from datetime import date
+    planted = {date.fromisoformat(s[k]["start"]) for s in truth["scenarios"] if s["id"] in ("S2", "S3")
+               for k in ("window", "baseline")}
+    start = date.fromisoformat(truth["data_start"])
+    while any(start <= d <= start + timedelta(days=6) for d in planted):
+        start += timedelta(days=1)
+    assert start + timedelta(days=6) < date(2026, 11, 13), "no quiet week before S1"
+    with admin() as c:
+        rates = dict(c.execute(
+            "SELECT payment_method, avg((status = 'SUCCESS')::int) FROM analytics.transactions "
+            "WHERE status <> 'DROPPED' AND txn_date BETWEEN %s AND %s GROUP BY 1",
+            (start, start + timedelta(days=6))).fetchall())
+    assert abs(float(rates["UPI"]) - 0.885) <= 0.015, rates
+    assert abs(float(rates["CARD"]) - 0.96) <= 0.015, rates
+
+
+# ---------------------------------------------------------------- determinism (scratch database)
+def _table_hashes(db):
+    tables = ["raw.banks", "raw.merchants", "raw.transaction_events", "raw.settlements", "analytics.banks",
+              "analytics.merchants", "analytics.transactions", "analytics.settlements", "analytics.dq_daily"]
+    with admin(db) as c:
+        out = {t: c.execute(f"SELECT md5(string_agg(t::text, E'\\n' ORDER BY t::text)) FROM {t} t").fetchone()[0]
+               for t in tables}
+        out["data_version"] = c.execute("SELECT version, seed, data_start, as_of, row_count "
+                                        "FROM analytics.data_version").fetchall()
+    return out
+
+
+def test_same_seed_gives_identical_rows(tmp_path):
+    create_database(SCRATCH)
+    try:
+        hashes = []
+        for i in range(2):   # separate processes: hash randomisation must not leak into the data
+            subprocess.run([sys.executable, "-m", "gen.generate", "--seed", "42", "--days", "3", "--db", SCRATCH,
+                            "--truth", str(tmp_path / f"truth{i}.json")], check=True, cwd=ROOT, capture_output=True)
+            hashes.append(_table_hashes(SCRATCH))
+        assert hashes[0] == hashes[1]
+        assert all(hashes[0].values())
+        assert (tmp_path / "truth0.json").read_bytes() == (tmp_path / "truth1.json").read_bytes()
+    finally:
+        with admin("postgres") as c:
+            c.autocommit = True
+            c.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(SCRATCH)))

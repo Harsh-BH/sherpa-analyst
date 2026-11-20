@@ -17,5 +17,34 @@ services:
       timeout: 3s
       retries: 20
 
+  # Streamlit app. Inside the compose network the DB is db:5432 (the host port 5433 is only for the host).
+  app:
+    build: .
+    container_name: sherpa-app
+    env_file: .env
+    environment:
+      SHERPA_DB_HOST: db
+      SHERPA_DB_PORT: "5432"
+    ports:
+      - "127.0.0.1:8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # One-shot seed: docker compose run --rm seed   (SEED=7 SHERPA_DB_NAME=... to vary)
+  seed:
+    build: .
+    profiles: [tools]
+    env_file: .env
+    environment:
+      SHERPA_DB_HOST: db
+      SHERPA_DB_PORT: "5432"
+    command: ["sh", "-c", "python -m gen.generate --seed ${SEED:-42} --create && python -m db.roles"]
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   sherpa_pgdata: {}
