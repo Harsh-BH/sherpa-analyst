@@ -511,20 +511,24 @@ def _breakdown(plan, evidence, label, higher_is_better, claims) -> str | None:
     if not rows:
         return None
     _, dims = _labels()
+    low = label if label.isupper() else label.lower()     # keep acronyms: GMV
     dim = dims.get(plan.dimensions[0], plan.dimensions[0]).lower() if plan.dimensions else "segment"
     if "value" in e.values:
-        claims.append(Claim(kind="fact", evidence_ids=[e.id], text=f"Overall, {label.lower()} was {_p(e, 'value')}."))
+        claims.append(Claim(kind="fact", evidence_ids=[e.id], text=f"Overall, {low} was {_p(e, 'value')}."))
     rows.sort(key=lambda r: e.values[f"{r['key']}_value"] or 0, reverse=True)
     top, bottom = rows[0], rows[-1]
     t, b = _name(str(top.get("segment")), e, top["key"]), _name(str(bottom.get("segment")), e, bottom["key"])
+    share = next((f"{top['key']}{x}" for x in ("_share", "_den_share") if f"{top['key']}{x}" in e.values), None)
+    of_what = "of payments" if share and share.endswith("_den_share") else "of the total"
     claims.append(Claim(kind="fact", evidence_ids=[e.id], text=(
-        f"{t} has the highest {label.lower()} at {_p(e, top['key'] + '_value')}.")))
+        f"{t} has the highest {low} at {_p(e, top['key'] + '_value')}"
+        + (f", {_p(e, share)} {of_what}." if share else "."))))
     if bottom is not top:
         claims.append(Claim(kind="fact", evidence_ids=[e.id], text=(
             f"{b} has the lowest at {_p(e, bottom['key'] + '_value')}.")))
         worst = b if higher_is_better else t
         claims.append(Claim(kind="recommendation", text=(
-            f"Payments operations: look into {worst}, the weakest {dim} on {label.lower()}.")))
+            f"Payments operations: look into {worst}, the weakest {dim} on {low}.")))
     return f"{label} by {dim}: {t} highest, {b} lowest"
 
 
