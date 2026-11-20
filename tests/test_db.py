@@ -51,6 +51,45 @@ def test_heavy_query_rejected_at_cost():
     assert ei.value.stage == "cost" and "too expensive" in ei.value.reason
 
 
+def test_row_returning_runaway_rejected_at_cost():
+    """R4: the root Limit pro-rates its child's cost; the gate must read the whole plan tree."""
+    with pytest.raises(QueryRejected) as ei:
+        db.run_query("SELECT a.txn_id FROM transactions a JOIN transactions b ON a.merchant_id = b.merchant_id "
+                     "WHERE a.amount_paise + b.amount_paise < 0", "head")
+    assert ei.value.stage == "cost"
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT txn_id, amount_paise FROM transactions ORDER BY amount_paise DESC LIMIT 10",
+    "SELECT count(DISTINCT merchant_id) AS merchants FROM transactions",
+])
+def test_heavier_legit_queries_pass_the_gate(sql):
+    assert db.run_query(sql, "head", use_cache=False).row_count > 0
+
+
+@pytest.mark.parametrize("persona", ["rm_south", "head"])
+def test_huge_result_bytes_rejected(persona):
+    """R2: a window string_agg makes every row megabytes; the byte budget stops it after a few rows."""
+    with pytest.raises(QueryRejected) as ei:
+        db.run_query("SELECT string_agg(txn_id, ',') OVER () AS s FROM transactions", persona, use_cache=False)
+    assert ei.value.stage == "cost" and "too large" in ei.value.reason
+
+
+def test_with_ties_gets_the_hard_limit():
+    """R3: FETCH ... WITH TIES used to ship the whole region."""
+    r = db.run_query("SELECT txn_id FROM transactions ORDER BY region FETCH FIRST 1 ROWS WITH TIES", "rm_south",
+                     max_rows=50, use_cache=False)
+    assert (r.row_count, r.truncated) == (50, True) and r.sql.endswith("LIMIT 51")
+
+
+def test_cache_key_includes_max_rows():
+    """R6: the same guarded SQL under a larger max_rows must not reuse a truncated result."""
+    small = db.run_query("SELECT txn_id FROM transactions ORDER BY txn_id", "rm_south", max_rows=10)
+    big = db.run_query("SELECT txn_id FROM transactions ORDER BY txn_id LIMIT 11", "rm_south", max_rows=20)
+    assert small.sql == big.sql and small.truncated
+    assert not big.cached and (big.row_count, big.truncated) == (11, False)
+
+
 def test_slow_legit_query_times_out():
     with pytest.raises(QueryRejected) as ei:
         db.run_query("SELECT merchant_id, count(*) FROM transactions GROUP BY merchant_id", "head",
@@ -80,6 +119,12 @@ def test_result_metadata_and_types():
                      "head", use_cache=False)
     assert len(r.sql_hash) == 12 and r.est_cost > 0 and r.tables == ["transactions"] and not r.cached
     assert isinstance(r.df.paise[0], float)          # numeric comes back as float, not Decimal
+
+
+def test_empty_result_keeps_columns():
+    r = db.run_query("SELECT txn_id, amount_paise AS amt FROM transactions WHERE txn_id = 'no-such-txn'", "rm_south",
+                     use_cache=False)
+    assert (r.row_count, r.truncated, list(r.df.columns)) == (0, False, ["txn_id", "amt"])
 
 
 def test_unknown_persona():
