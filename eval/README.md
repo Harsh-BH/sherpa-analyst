@@ -28,8 +28,9 @@ extra or renamed candidate columns allowed, numbers equal at 4 significant digit
 
 ## The baseline (`eval/baseline.py`)
 
-One LLM call writes a query from the `analytics.*` DDL (plus today's date and the DB's execution limits); a
-second summarises the rows. It uses the same models as Sherpa.
+One LLM call writes a query from the `analytics.*` DDL (plus today's date and the DB's execution limits). If
+the database rejects the query, it gets the error back for one corrected try. A last call summarises the
+rows. It uses the same models as Sherpa.
 
 - **It is safer than a real naive system.** Its SQL runs through `sherpa.db.run_query`: the guard, the
   persona's DB role with RLS, read-only, timeout and cost gate. We never execute unguarded SQL. A real naive
