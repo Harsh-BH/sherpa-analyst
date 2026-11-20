@@ -156,7 +156,7 @@ def _check(sql: str, max_rows: int) -> GuardResult:
     # Qualified columns (analytics.banks.bank_id) parse as Column, never Dot.
     dot = next(tree.find_all(exp.Dot), None)
     if dot is not None:
-        raise _reject("policy", f"Field selection {dot.sql(DIALECT)} is not allowed (write name(expr) instead).", sql)
+        raise _reject("policy", f"Field selection {dot.sql(DIALECT)} is not allowed.", sql)
     for dt in tree.find_all(exp.DataType):
         if dt.this not in ALLOWED_CAST_TYPES:
             raise _reject("policy", f"Cast to type {dt.sql(DIALECT)} is not allowed.", sql)
