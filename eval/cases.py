@@ -94,7 +94,10 @@ def primary_frame(bundle: AnswerBundle, intent: str) -> pd.DataFrame | None:
         return None
     tabled = next((e for e in evs if e.table), None)
     if intent in ("breakdown", "trend") or (intent == "compare_periods" and tabled):
-        return pd.DataFrame(tabled.table) if tabled else None
+        df = pd.DataFrame(tabled.table) if tabled else None
+        if df is not None and "bucket" in df and df["bucket"].astype(str).str.contains(" ").all():
+            df["hour"] = df["bucket"].astype(str).str[11:13].astype(int)     # "2026-11-19 10:00" -> 10
+        return df
     return pd.DataFrame([evs[0].values])
 
 

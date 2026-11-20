@@ -132,6 +132,8 @@ def test_primary_frames():
     assert list(primary_frame(bundle(evidence=cmp), "compare_periods")["segment"]) == ["VISA"]
     assert primary_frame(bundle(evidence=cmp), "explain_change").iloc[0]["r1"] == .91
     assert primary_frame(bundle(evidence=cmp), "breakdown") is None
+    hourly = [Evidence(id="E1", kind="trend", title="t", table=[{"bucket": "2026-11-19 09:00", "value": .9, "den": 5}])]
+    assert primary_frame(bundle(evidence=hourly), "trend")["hour"].tolist() == [9]
 
 
 def test_leaked_ignores_case_and_spacing():
