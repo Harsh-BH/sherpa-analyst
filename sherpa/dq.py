@@ -72,7 +72,9 @@ def run_checks(dq_daily: pd.DataFrame, hourly: pd.DataFrame, *, window: TimeWind
 def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
     """Hours in [start, end] whose attempts fall below GAP_RATIO x the median of the same hour and gateway
     over the 7 preceding days; consecutive such hours of a gateway merge into one run, reported as an error
-    when the run usually holds >= GAP_MIN_EXPECTED attempts."""
+    when the run usually holds >= GAP_MIN_EXPECTED attempts. An empty hour that is usually empty too
+    (median 0, small filtered views) may bridge the inside of a run but never starts or ends one, so an
+    outage is reported with its full range rather than split or shortened."""
     if hourly.empty or end < start:
         return []
     h = hourly.assign(txn_date=_dates(hourly["txn_date"]))
@@ -89,7 +91,7 @@ def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
             continue
         med = att.loc[hist].groupby(level=["txn_hour", "gateway"]).median()
         cur = att.loc[d]
-        flagged = (med > 0) & (cur < GAP_RATIO * med)
+        flagged = ((med > 0) & (cur < GAP_RATIO * med)) | ((med == 0) & (cur == 0))
         gaps += [(gw, d, hr, int(cur[(hr, gw)]), float(med[(hr, gw)])) for hr, gw in flagged[flagged].index]
 
     out = []
@@ -102,6 +104,10 @@ def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
         else:
             runs.append([g])
     for run in runs:
+        while run and run[0][4] == 0:        # usually-empty hours only bridge, never extend, a run
+            run = run[1:]
+        while run and run[-1][4] == 0:
+            run = run[:-1]
         got, usual = sum(g[3] for g in run), sum(g[4] for g in run)
         if usual < GAP_MIN_EXPECTED:
             continue

@@ -89,3 +89,15 @@ def test_low_volume_gap_is_one_run_and_quiet_hours_are_not_gaps():
     [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
     assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
     assert w.values["hours"] == 6
+
+
+def test_south_sized_gap_keeps_its_full_range():
+    # one region (~1/4 of volume): PG_C's night hours usually see 5-6 attempts, hour 4 none at all
+    hourly = clean_hourly().assign(attempts=lambda d: [SHAPE[h] // 4 for h in d["txn_hour"]])
+    pgc, d, h = hourly["gateway"] == "PG_C", hourly["txn_date"], hourly["txn_hour"]
+    hourly.loc[pgc & (h == 4), "attempts"] = 0                                   # usually empty
+    hourly.loc[pgc & (h == 1), "attempts"] = 0                                   # usually empty, just before the gap
+    hourly.loc[pgc & (d == date(2026, 11, 16)) & h.between(2, 7), "attempts"] = 0
+    [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
+    assert w.values["hours"] == 6 and w.values["usual_attempts"] == 5 + 5 + 0 + 15 + 37 + 75   # hour 4 bridged
