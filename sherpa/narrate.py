@@ -16,7 +16,8 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from . import llm
-from .config import MIN_SUPPORT, load_catalog, settings
+from .config import FDR_Q, MIN_SUPPORT, load_catalog, settings
+from .drivers import NONE_LABEL
 from .contracts import (AnalysisPlan, CheckedClaim, Claim, DimensionDecomposition, DQWarning, DriverReport,
                         Evidence, Narrative, SegmentEffect, format_value)
 
@@ -36,6 +37,7 @@ _DEN_KEYS = {"den", "n", "n0", "n1", "denominator", "attempts", "support", "txn_
 _NEVER = {"display_name"}
 _MISSING = object()
 LEVELS = ["low", "medium", "high"]
+WEAK_SCORE = 0.3          # DimensionDecomposition.score = fraction of the change a dimension explains (analytics)
 
 
 # ======================================================================== sanitize
@@ -287,8 +289,10 @@ def _row_key(e: Evidence | None, segment: str) -> str | None:
     return next((r.get("key") for r in e.table if r.get("segment") == segment), None)
 
 
-def _name(segment: str, e: Evidence | None, key: str | None) -> str:
+def _name(segment: str, e: Evidence | None, key: str | None, dim: str = "") -> str:
     """A segment as claim text: plain if it has no bare numerals, else the reserved _segment placeholder."""
+    if segment == NONE_LABEL:                 # NULL dimension value, e.g. card_network on UPI traffic
+        return f"payments with no {dim}" if dim else "payments with no value"
     if not _numerals(segment) and "{" not in segment:
         return segment
     return _p(e, f"{key}_segment") if e is not None and key else "one segment"
@@ -323,12 +327,20 @@ def _decomp_evidence(evidence: list[Evidence], dec: DimensionDecomposition) -> E
 
 
 def _driver_segment(dec: DimensionDecomposition, delta: float) -> SegmentEffect:
-    same_way = [s for s in dec.segments if s.supported and s.significant and s.total_effect * delta > 0]
-    pool = same_way or [s for s in dec.segments if s.supported] or dec.segments
+    named = [s for s in dec.segments if s.segment != NONE_LABEL] or dec.segments
+    same_way = [s for s in named if s.supported and s.significant and s.total_effect * delta > 0]
+    pool = same_way or [s for s in named if s.supported] or named
     return max(pool, key=lambda s: abs(s.total_effect))
 
 
-def _explain(plan, evidence, drivers, label, claims) -> str | None:
+def _decline_split(evidence: list[Evidence], dim: str, segment: str) -> Evidence | None:
+    """The pipeline's technical-vs-business decline test: the driver segment's own if present, else overall."""
+    tests = [e for e in evidence if e.kind == "segment_test" and "td_delta" in e.values and "bd_delta" in e.values]
+    return next((e for e in tests if f"({dim}={segment})" in e.title), None) or next(
+        (e for e in tests if "(overall)" in e.title), None) or (tests[0] if tests else None)
+
+
+def _explain(plan, evidence, drivers, label, hib, claims) -> str | None:
     comp = _find(evidence, "comparison", "r0", "r1", "delta")
     if comp is None or drivers is None:
         return None
@@ -354,7 +366,7 @@ def _explain(plan, evidence, drivers, label, claims) -> str | None:
             k = _row_key(dec_ev, s.segment)
             if k and f"{k}_share1" in dec_ev.values:
                 claims.append(Claim(kind="fact", evidence_ids=[dec_ev.id], text=(
-                    f"{_name(s.segment, dec_ev, k)} went from {_p(dec_ev, k + '_share0')} to "
+                    f"{_name(s.segment, dec_ev, k, dim.lower())} went from {_p(dec_ev, k + '_share0')} to "
                     f"{_p(dec_ev, k + '_share1')} of volume, while its own rate moved from "
                     f"{_p(dec_ev, k + '_rate0')} to {_p(dec_ev, k + '_rate1')}.")))
         claims.append(Claim(kind="fact", evidence_ids=[(dec_ev or comp).id], text=(
@@ -369,7 +381,7 @@ def _explain(plan, evidence, drivers, label, claims) -> str | None:
         return f"{label} {moved} because the {dim.lower()} mix shifted; no segment got worse"
     s = _driver_segment(best, drivers.delta)
     k = _row_key(dec_ev, s.segment)
-    name = _name(s.segment, dec_ev, k)
+    name = _name(s.segment, dec_ev, k, dim.lower())
     how = "its own rate" if abs(s.rate_effect) >= abs(s.mix_effect) else "its share of volume"
     if k and f"{k}_total_effect" in dec_ev.values:
         claims.append(Claim(kind="fact", evidence_ids=[dec_ev.id], text=(
@@ -379,19 +391,36 @@ def _explain(plan, evidence, drivers, label, claims) -> str | None:
     else:
         claims.append(Claim(kind="fact", evidence_ids=[comp.id], text=(
             f"The largest contributor is {name} ({dim.lower()}), mostly through {how}.")))
+    split = _decline_split(evidence, best.dimension, s.segment)
+    technical = split is None or abs(split.values["td_delta"] or 0) >= abs(split.values["bd_delta"] or 0)
+    if split is not None:
+        claims.append(Claim(kind="fact", evidence_ids=[split.id], text=(
+            f"Technical declines moved from {_p(split, 'td_r0')} to {_p(split, 'td_r1')} and business declines "
+            f"from {_p(split, 'bd_r0')} to {_p(split, 'bd_r1')}, so the change is mostly "
+            f"{'technical' if technical else 'customer-side (business declines)'}.")))
     drill = _find(evidence, "drilldown")
     if drivers.drilldown and drill is not None:
         cell = drivers.drilldown[0]
         dk = _row_key(drill, cell.effect.segment)
-        if dk and f"{dk}_rate1" in drill.values:
+        if dk and f"{dk}_rate1" in drill.values and NONE_LABEL not in cell.dims.values():
             claims.append(Claim(kind="fact", evidence_ids=[drill.id], text=(
                 f"Drilling down, {_name(' on '.join(cell.dims.values()), drill, dk)} stands out: its rate moved "
                 f"from {_p(drill, dk + '_rate0')} to {_p(drill, dk + '_rate1')}.")))
-    claims.append(Claim(kind="hypothesis", evidence_ids=[(dec_ev or comp).id], text=_HYPOTHESIS.get(
-        best.dimension, "This is consistent with a problem localised to {s}.").format(s=name)))
-    claims.append(Claim(kind="recommendation", text=_ACTION.get(
-        best.dimension, "Payments operations: investigate {s} for the current window and confirm the cause.").format(
-        s=name)))
+    hourly = next((e for e in evidence if e.kind == "trend" and "by hour" in e.title
+                   and all(x in e.values for x in ("min", "min_at", "max", "max_at"))), None)
+    if hourly is not None:
+        worst, at = ("min", "min_at") if hib else ("max", "max_at")
+        claims.append(Claim(kind="fact", evidence_ids=[hourly.id], text=(
+            f"By hour, it was worst at {_p(hourly, worst)} ({_p(hourly, at)}).")))
+    if s.segment != NONE_LABEL:               # never build a mechanism around a missing value
+        why = (_HYPOTHESIS.get(best.dimension, "This is consistent with a problem localised to {s}.") if technical
+               else "The move is mostly in business declines (insufficient funds, wrong PIN, limits, risk rules), "
+                    "which is consistent with a customer-side or risk-rule change at {s} rather than an outage.")
+        act = (_ACTION.get(best.dimension, "Payments operations: investigate {s} for the current window and "
+                                           "confirm the cause.") if technical
+               else "Risk operations: review risk-rule and limit changes affecting {s} in the current window.")
+        claims.append(Claim(kind="hypothesis", evidence_ids=[(split or dec_ev or comp).id], text=why.format(s=name)))
+        claims.append(Claim(kind="recommendation", text=act.format(s=name)))
     return f"{label} {moved} to {_p(comp, 'r1')}, driven mainly by {name} ({dim.lower()})"
 
 
@@ -504,7 +533,7 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
     claims: list[Claim] = []
     headline = None
     if plan.intent == "explain_change":
-        headline = _explain(plan, evidence, drivers, label, claims) or _compare(plan, evidence, label, claims)
+        headline = _explain(plan, evidence, drivers, label, hib, claims) or _compare(plan, evidence, label, claims)
     elif plan.intent == "compare_periods":
         headline = _compare(plan, evidence, label, claims)
     elif plan.intent == "breakdown":
@@ -537,25 +566,37 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
             claims.append(Claim(kind="caveat", text=a))
     if any(_numerals(a) for a in plan.assumptions):
         claims.append(Claim(kind="caveat", text="The period or metric was interpreted; see the plan's assumptions."))
-    caveats = [c for c in claims if c.kind == "caveat"][:3]          # caveats outrank a fourth or fifth fact
-    rest = [c for c in claims if c.kind != "caveat"][:MAX_CLAIMS - len(caveats)]
+    # Over MAX_CLAIMS: caveats (up to 3) and hypotheses/recommendations outrank the last-added facts.
+    caveats = [c for c in claims if c.kind == "caveat"][:3]
+    budget = MAX_CLAIMS - len(caveats)
+    others = [c for c in claims if c.kind in ("hypothesis", "recommendation")]
+    facts = [c for c in claims if c.kind == "fact"][:max(1, budget - len(others))]
+    keep = {id(c) for c in facts + others}
+    rest = [c for c in claims if id(c) in keep][:budget]
     return Narrative(headline=headline or GENERIC_HEADLINE, claims=rest + caveats)
 
 
 # ======================================================================== confidence
 def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims: list[CheckedClaim],
-               dq: list[DQWarning], drivers: DriverReport | None) -> tuple[str, list[str]]:
+               dq: list[DQWarning], drivers: DriverReport | None, *, dropped_claims: int = 0) -> tuple[str, list[str]]:
     """Rule-based: caps first (route, unsupported driver), then one level down per DQ error / dropped claims,
     then small denominators force low. Every rule that fires adds a short sentence."""
     level, reasons = 2, []
     if route == "sql":
         level = min(level, 1)
         reasons.append("The answer uses model-written SQL (unverified route), so confidence is capped at medium.")
-    if drivers and drivers.top_dimension and drivers.dimensions:
+    if drivers and drivers.dimensions:
         top = drivers.dimensions[0]
-        if not any(s.supported and s.significant for s in top.segments):
+        if drivers.simpson_flag:     # a mix explanation rests on the share test, not on any segment's rate moving
+            if top.mix_chi2_p is None or top.mix_chi2_p >= FDR_Q:
+                level = min(level, 1)
+                reasons.append("The shift in mix is not statistically significant.")
+        elif drivers.top_dimension and not any(s.supported and s.significant for s in top.segments):
             level = min(level, 1)
             reasons.append("The top driver dimension has no well-supported, statistically significant segment.")
+        if top.score < WEAK_SCORE:
+            level = min(level, 1)
+            reasons.append(f"The top driver explains only {max(top.score, 0):.0%} of the change.")
     errors = [w for w in dq if w.severity == "error"]
     if errors:
         level -= 1
@@ -564,7 +605,7 @@ def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims:
     for w in dq:
         if w.severity == "warn":
             reasons.append(f"Data-quality warning noted: {w.check.replace('_', ' ')}.")
-    dropped = sum(not c.ok for c in claims)
+    dropped = dropped_claims + sum(not c.ok for c in claims)
     if dropped:
         level -= 1
         reasons.append("Some generated statements failed the evidence check and were removed.")

@@ -46,7 +46,15 @@ reader. You never compute, round, estimate or invent a number.
   segments marked supported and significant in the table. Use the drill-down evidence for combinations
   (an issuer on one card network) when present.
 - If no dimension explains the change (`top_dimension` "none" or a note says so), say the change is spread
-  across segments rather than inventing a driver.
+  across segments rather than inventing a driver. A dimension's `score` is the fraction of the change it
+  explains; below about 0.3 it is a weak explanation, so say so.
+- `segment_test` evidence splits declines into technical (`td_*`: banks, switches, gateways) and business
+  (`bd_*`: insufficient funds, wrong PIN, limits, risk rules) decline rates, overall or for one segment
+  (see its title). A move mostly in technical declines supports an outage-type hypothesis; a move mostly
+  in business declines points to the customer or risk-rule side instead.
+- A `trend` evidence titled "... by hour for ..." shows when within the window the segment was worst.
+- The segment "(none)" means the dimension has no value for those payments (for example no card network on
+  UPI traffic). Call it "payments with no <dimension>" and never build a hypothesis around it.
 
 # Style
 

@@ -400,8 +400,15 @@ def test_confidence_rules():
     assert N.confidence(p, "catalog", big, [cc(), cc(False)], [], None)[0] == "medium"
     small = [E("E1", "metric", {"value": 0.9, "den": 300}, {})]
     assert N.confidence(p, "catalog", small, [cc()], [], None)[0] == "low"
-    # top driver with no supported significant segment caps at medium; the worked example has none
-    assert N.confidence(p, "catalog", EV, [cc()], [], simpson_report())[0] == "medium"
+    # a Simpson answer rests on the mix test; a rate answer needs a supported significant segment
+    simp = simpson_report()
+    assert N.confidence(p, "catalog", EV, [cc()], [], simp)[0] == "medium"          # no mix test recorded
+    simp.dimensions[0].mix_chi2_p = 1e-9
+    assert N.confidence(p, "catalog", EV, [cc()], [], simp)[0] == "high"
+    flat = rate_break_report()
+    for sgm in flat.dimensions[0].segments:
+        sgm.significant = False
+    assert N.confidence(p, "catalog", EV, [cc()], [], flat)[0] == "medium"
     assert N.confidence(p, "catalog", EV, [cc()], [], rate_break_report())[0] == "high"
     amb = {"kind": "denominator", "description": "d", "options": ["success_rate", "success_rate_incl_dropoffs"]}
     level, reasons = N.confidence(plan(assumptions=["x"], ambiguities=[amb]), "catalog", big, [cc()], [], None)
@@ -420,3 +427,95 @@ def test_live_narrate_simpson():
     assert checked and all(c.ok for c in checked) and headline != N.GENERIC_HEADLINE
     assert usage["dropped_claims"] == 0
     assert "mix" in (headline + " ".join(c.rendered for c in checked)).lower()
+
+
+# ---------------------------------------------------------------- pipeline extras (A-ai-2, A-ai-4)
+def split_evidence(eid, title, td, bd):
+    return E(eid, "segment_test", {"td_r0": 0.02, "td_r1": 0.02 + td, "td_delta": td,
+                                   "bd_r0": 0.04, "bd_r1": 0.04 + bd, "bd_delta": bd},
+             {k: ("pp" if k.endswith("delta") else "pct") for k in ("td_r0", "td_r1", "td_delta", "bd_r0", "bd_r1",
+                                                                     "bd_delta")}, baseline=B).model_copy(
+        update={"title": title})
+
+
+def test_template_uses_decline_split_for_hypothesis():
+    r = rate_break_report()
+    base = evidence_for(r)
+    tech = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.0),
+                   split_evidence("E9", "Technical vs business declines (issuer_bank=KESTREL)", 0.15, 0.01)]
+    _, checked = all_ok(N.template_narrative(plan(), tech, drivers=r), tech)
+    split = next(c for c in checked if "Technical declines moved" in c.rendered)
+    assert split.evidence_ids == ["E9"] and "mostly technical" in split.rendered and "17.0%" in split.rendered
+    assert any(c.kind == "hypothesis" and "outage" in c.rendered for c in checked)
+    biz = base + [split_evidence("E8", "Technical vs business declines (overall)", 0.001, 0.03)]
+    _, checked = all_ok(N.template_narrative(plan(), biz, drivers=r), biz)
+    hyp = next(c for c in checked if c.kind == "hypothesis")
+    assert "business declines" in hyp.rendered and "outage" in hyp.rendered.split("rather than")[1]
+    assert any(c.kind == "recommendation" and c.rendered.startswith("Risk operations") for c in checked)
+
+
+def test_template_hourly_fact_and_trimming():
+    r = rate_break_report()
+    ev = evidence_for(r) + [
+        split_evidence("E8", "Technical vs business declines (overall)", 0.03, 0.0),
+        E("E9", "trend", {"first": 0.9, "last": 0.9, "min": 0.6, "min_at": "14:00", "max": 0.95, "max_at": "03:00"},
+          {"first": "pct", "last": "pct", "min": "pct", "min_at": "text", "max": "pct", "max_at": "text"})]
+    ev[-1].title = "Success rate by hour for issuer_bank=KESTREL"
+    w = DQWarning(check="duplicates", severity="warn", message="m")
+    n = N.template_narrative(plan(assumptions=["Read as the last complete week."]), ev, drivers=r, dq=[w])
+    _, checked = all_ok(n, ev)
+    kinds = [c.kind for c in checked]
+    assert len(checked) == N.MAX_CLAIMS and kinds.count("caveat") == 2
+    assert "hypothesis" in kinds and "recommendation" in kinds      # facts were trimmed first
+    full = N.template_narrative(plan(), ev, drivers=r)
+    assert any("worst at 60.0% (14:00)" in c.rendered for c in N.check_claims(full, ev)[1])
+
+
+def test_none_segment_never_drives_a_hypothesis():
+    d = decomposition("card_network", [("(none)", 50000, 44000, 50000, 40000), ("VISA", 50000, 48000, 50000, 47900)],
+                      0.9, significant={"(none)", "VISA"})
+    r = DriverReport(metric="success_rate", r0=d.r0, r1=d.r1, delta=d.delta, window=W, baseline=B, dimensions=[d],
+                     top_dimension="card_network", simpson_flag=False)
+    ev = evidence_for(r)
+    headline, checked = all_ok(N.template_narrative(plan(), ev, drivers=r), ev)
+    assert "VISA" in headline and "(none)" not in headline
+    assert not any("(none)" in c.rendered for c in checked if c.kind in ("hypothesis", "recommendation"))
+    assert N._name("(none)", None, None, "card network") == "payments with no card network"
+
+
+def test_confidence_dropped_kwarg_and_weak_score():
+    p = plan(assumptions=[], baseline=None)
+    big = [E("E1", "metric", {"value": 0.9, "den": 50000}, {})]
+    level, reasons = N.confidence(p, "catalog", big, [cc()], [], None, dropped_claims=2)
+    assert level == "medium" and "removed" in reasons[0]
+    weak = rate_break_report()
+    weak.dimensions[0].score = 0.2
+    level, reasons = N.confidence(p, "catalog", EV, [cc()], [], weak)
+    assert level == "medium" and "explains only 20% of the change" in reasons[0]
+
+
+# ---------------------------------------------------------------- against the real driver engine
+@pytest.mark.parametrize("scenario", ["rate_break", "mix_shift"])
+def test_template_on_real_driver_evidence(scenario):
+    import pandas as pd
+    from sherpa.drivers import evidence_from_report, explain_change
+    from tests.test_drivers import frames_from, synthetic_rows      # analytics' synthetic generator (read-only)
+
+    rng = np.random.default_rng(7)
+    if scenario == "rate_break":
+        rows = pd.concat([synthetic_rows(rng, 150_000, "baseline"),
+                          synthetic_rows(rng, 150_000, "current", broken_bank="HERON")])
+    else:
+        rows = pd.concat([synthetic_rows(rng, 150_000, "baseline"), synthetic_rows(rng, 150_000, "current"),
+                          synthetic_rows(rng, 50_000, "current", upi=0.85, category="grocery", region="South")])
+    rep = explain_change(frames_from(rows), metric="success_rate", window=W, baseline=B)
+    ev = evidence_from_report(rep, 1)
+    headline, checked = all_ok(N.template_narrative(plan(), ev, drivers=rep), ev)
+    text = headline + " " + " ".join(c.rendered for c in checked)
+    assert N.confidence(plan(assumptions=[]), "catalog", ev, checked, [], rep)[0] == "high"
+    if scenario == "rate_break":
+        assert "HERON" in headline and "outage" in text and "Simpson" not in text
+    else:
+        assert "mix shifted" in headline and "Simpson" in text and "outage" not in text
+    blob = json.dumps(N.sanitize(ev))
+    assert N.REDACTED not in blob                       # closed-vocabulary evidence passes untouched
