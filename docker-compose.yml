@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17
+    container_name: sherpa-db
+    environment:
+      POSTGRES_DB: ${SHERPA_DB_NAME:-sherpa}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${SHERPA_DB_PORT:-5433}:5432"
+    volumes:
+      - sherpa_pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${SHERPA_DB_NAME:-sherpa}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  sherpa_pgdata: {}

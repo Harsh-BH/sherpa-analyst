@@ -1,0 +1,32 @@
+[project]
+name = "sherpa"
+version = "0.1.0"
+description = "Governed AI business analyst for payments data: the LLM plans, deterministic code computes, every number traces to an executed query."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "sqlglot>=26",
+    "psycopg[binary]>=3.2",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "scipy>=1.13",
+    "statsmodels>=0.14",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "anthropic>=0.60",
+    "streamlit>=1.40",
+    "altair>=5.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -m 'not live'"
+markers = [
+    "db: needs the seeded Postgres on SHERPA_DB_PORT (skipped automatically when it is down or empty)",
+    "live: makes a real LLM call (deselected by default; run with -m live)",
+]

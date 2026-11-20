@@ -1,0 +1,323 @@
+# Governed metric catalog. CONTRACT (owner: master).
+# Shape follows dbt MetricFlow ratio metrics (numerator/denominator, each with its own filter) and
+# Snowflake Cortex Analyst verified_queries. Verified queries are used twice: as few-shot examples
+# for the planner, and as known-answer tests for the compiler and the eval.
+# Filters below are trusted SQL written by us; the LLM only ever picks names from this file.
+
+version: 1
+time_zone: Asia/Kolkata
+
+tables:
+  transactions:
+    sql_table: analytics.transactions
+    time_column: txn_date
+    description: "One row per payment attempt (deduplicated). status is SUCCESS, FAILED (declined) or DROPPED (customer abandoned before the bank responded)."
+  settlements:
+    sql_table: analytics.settlements
+    time_column: cycle_date
+    description: "One row per merchant per settlement cycle. Cycle D covers sales from D-1 23:00 IST to D 22:59 IST and is paid out on D+1."
+
+metrics:
+  - name: success_rate
+    label: Success rate
+    description: "Successful payments / payments that reached the bank (SUCCESS + FAILED). Excludes attempts the customer abandoned. The default meaning of 'success rate' for payments teams."
+    table: transactions
+    type: ratio
+    numerator: {agg: count, filter: "status = 'SUCCESS'"}
+    denominator: {agg: count, filter: "status IN ('SUCCESS', 'FAILED')"}
+    format: percent
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [SR, success %, approval rate, payment success rate, authorisation rate, auth rate]
+    variants: [success_rate_incl_dropoffs]
+
+  - name: success_rate_incl_dropoffs
+    label: Success rate incl. drop-offs
+    description: "Successful payments / all payment attempts, including attempts the customer abandoned. The checkout-conversion view of success."
+    table: transactions
+    type: ratio
+    numerator: {agg: count, filter: "status = 'SUCCESS'"}
+    denominator: {agg: count}
+    format: percent
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [conversion rate, checkout success rate, end-to-end success rate]
+    variants: [success_rate]
+
+  - name: technical_decline_rate
+    label: Technical decline rate
+    description: "Declines caused by banks, switches or gateways (decline_type TECHNICAL) / payments that reached the bank."
+    table: transactions
+    type: ratio
+    numerator: {agg: count, filter: "status = 'FAILED' AND decline_type = 'TECHNICAL'"}
+    denominator: {agg: count, filter: "status IN ('SUCCESS', 'FAILED')"}
+    format: percent
+    higher_is_better: false
+    source_of_truth: analytics.transactions
+    synonyms: [TD rate, TD %, technical declines, technical failure rate]
+
+  - name: business_decline_rate
+    label: Business decline rate
+    description: "Declines caused by the customer side (insufficient funds, wrong PIN, limits, risk; decline_type BUSINESS) / payments that reached the bank."
+    table: transactions
+    type: ratio
+    numerator: {agg: count, filter: "status = 'FAILED' AND decline_type = 'BUSINESS'"}
+    denominator: {agg: count, filter: "status IN ('SUCCESS', 'FAILED')"}
+    format: percent
+    higher_is_better: false
+    source_of_truth: analytics.transactions
+    synonyms: [BD rate, BD %, business declines, customer declines]
+
+  - name: dropoff_rate
+    label: Drop-off rate
+    description: "Attempts the customer abandoned (DROPPED) / all attempts."
+    table: transactions
+    type: ratio
+    numerator: {agg: count, filter: "status = 'DROPPED'"}
+    denominator: {agg: count}
+    format: percent
+    higher_is_better: false
+    source_of_truth: analytics.transactions
+    synonyms: [abandonment rate, drop rate, user drop-offs]
+
+  - name: attempts
+    label: Payment attempts
+    description: "Count of payment attempts, all outcomes."
+    table: transactions
+    type: simple
+    measure: {agg: count}
+    format: count
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [transactions, txn count, volume, number of payments]
+
+  - name: successful_payments
+    label: Successful payments
+    description: "Count of successful payments."
+    table: transactions
+    type: simple
+    measure: {agg: count, filter: "status = 'SUCCESS'"}
+    format: count
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [successful transactions, completed payments]
+
+  - name: gmv
+    label: GMV
+    description: "Value of successful payments in INR, by the IST calendar date of the payment."
+    table: transactions
+    type: simple
+    measure: {agg: sum, expr: "amount_paise / 100.0", filter: "status = 'SUCCESS'"}
+    format: inr
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [sales, TPV, processed value, revenue processed, gross merchandise value]
+
+  - name: avg_ticket_size
+    label: Average ticket size
+    description: "GMV / successful payments, in INR."
+    table: transactions
+    type: ratio
+    numerator: {agg: sum, expr: "amount_paise / 100.0", filter: "status = 'SUCCESS'"}
+    denominator: {agg: count, filter: "status = 'SUCCESS'"}
+    format: inr
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [ATS, average order value, AOV, average transaction value]
+
+  - name: gmv_settlement_basis
+    label: GMV by settlement cycle
+    description: "Successful sales grouped by settlement cycle (23:00 IST cutoff) instead of calendar date. Used to reconcile transactions against settlements."
+    table: transactions
+    time_column: cycle_date
+    type: simple
+    measure: {agg: sum, expr: "amount_paise / 100.0", filter: "status = 'SUCCESS'"}
+    format: inr
+    higher_is_better: true
+    source_of_truth: analytics.transactions
+    synonyms: [cycle GMV]
+
+  - name: settled_gross
+    label: Settled gross
+    description: "Gross sales value in settlement payouts, by settlement cycle."
+    table: settlements
+    type: simple
+    measure: {agg: sum, expr: "gross_paise / 100.0"}
+    format: inr
+    higher_is_better: true
+    source_of_truth: analytics.settlements
+    synonyms: [gross settlement]
+
+  - name: settled_net
+    label: Settled amount (net)
+    description: "Net amount paid out to merchants (gross - refunds - fees), by settlement cycle."
+    table: settlements
+    type: simple
+    measure: {agg: sum, expr: "net_paise / 100.0"}
+    format: inr
+    higher_is_better: true
+    source_of_truth: analytics.settlements
+    synonyms: [settled amount, payouts, settlement amount, net settlement]
+
+  - name: refunds
+    label: Refunds
+    description: "Refunds netted off settlement payouts, by settlement cycle."
+    table: settlements
+    type: simple
+    measure: {agg: sum, expr: "refund_paise / 100.0"}
+    format: inr
+    higher_is_better: false
+    source_of_truth: analytics.settlements
+    synonyms: [refund amount]
+
+  - name: mdr_fees
+    label: MDR fees
+    description: "Merchant discount rate fees deducted from payouts, by settlement cycle."
+    table: settlements
+    type: simple
+    measure: {agg: sum, expr: "fee_paise / 100.0"}
+    format: inr
+    higher_is_better: false
+    source_of_truth: analytics.settlements
+    synonyms: [fees, MDR, processing fees]
+
+dimensions:
+  - name: payment_method
+    label: Payment method
+    column: payment_method
+    tables: [transactions]
+    values: [UPI, CARD, NETBANKING, WALLET]
+    synonyms: [method, payment mode, mode, instrument, rail]
+  - name: card_network
+    label: Card network
+    column: card_network
+    tables: [transactions]
+    values: [VISA, MASTERCARD, RUPAY]
+    synonyms: [network, scheme, card scheme]
+  - name: issuer_bank
+    label: Issuer / remitter bank
+    column: issuer_bank_id
+    tables: [transactions]
+    values: [KESTREL, HERON, OSPREY, MYNA, EGRET, IBIS, HORNBILL, BULBUL, SARUS, DRONGO]
+    synonyms: [bank, issuer, issuing bank, remitter bank, payer bank]
+  - name: gateway
+    label: Gateway
+    column: gateway
+    tables: [transactions]
+    values: [PG_A, PG_B, PG_C]
+    synonyms: [PG, payment gateway, acquirer route]
+  - name: device
+    label: Device
+    column: device
+    tables: [transactions]
+    values: [android, ios, web, pos]
+    synonyms: [platform, channel]
+  - name: merchant_category
+    label: Merchant category
+    column: merchant_category
+    tables: [transactions]
+    values: [grocery, electronics, fuel, restaurants, pharmacy, apparel, travel, utilities]
+    synonyms: [category, vertical, MCC group, segment]
+  - name: city_tier
+    label: City tier
+    column: city_tier
+    tables: [transactions]
+    values: [T1, T2, T3]
+    synonyms: [tier]
+  - name: region
+    label: Region
+    column: region
+    tables: [transactions, settlements]
+    values: [North, South, East, West]
+    synonyms: [zone, geography]
+  - name: txn_hour
+    label: Hour of day (IST)
+    column: txn_hour
+    dtype: int
+    tables: [transactions]
+    values: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"]
+    synonyms: [hour, time of day]
+  - name: txn_date
+    label: Date (IST)
+    column: txn_date
+    dtype: date
+    tables: [transactions]
+    driver: false
+    synonyms: [day, date]
+  - name: decline_type
+    label: Decline type
+    column: decline_type
+    tables: [transactions]
+    values: [TECHNICAL, BUSINESS]
+    driver: false
+    synonyms: [failure type, TD/BD]
+  - name: decline_code
+    label: Decline reason
+    column: decline_code
+    tables: [transactions]
+    values: [INSUFFICIENT_FUNDS, INCORRECT_PIN, LIMIT_EXCEEDED, RISK_DECLINED, ISSUER_TIMEOUT, ISSUER_SWITCH_DOWN, ACS_3DS_FAILURE, GATEWAY_ERROR]
+    driver: false
+    synonyms: [failure reason, error code, response code]
+  - name: merchant
+    label: Merchant
+    column: merchant_id
+    tables: [transactions, settlements]
+    driver: false
+    synonyms: [merchant id, store, outlet]
+
+verified_queries:
+  - name: sr_last_7_days
+    question: "What was our success rate in the last 7 days?"
+    plan: {route: catalog, intent: metric_value, metric: success_rate, window: {preset: last_7_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: sr_by_method_last_week
+    question: "Success rate by payment method last week"
+    plan: {route: catalog, intent: breakdown, metric: success_rate, dimensions: [payment_method], window: {preset: last_7_days},
+           assumptions: ["'last week' read as the last 7 complete days"]}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: why_sr_dropped_last_week
+    question: "Why did success rate drop last week?"
+    plan: {route: catalog, intent: explain_change, metric: success_rate, window: {preset: last_7_days}, baseline: {preset: previous_7_days},
+           assumptions: ["'last week' read as the last 7 complete days, compared with the 7 days before"]}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: upi_sr_by_bank
+    question: "UPI success rate by issuer bank over the last 14 days"
+    plan: {route: catalog, intent: breakdown, metric: success_rate, dimensions: [issuer_bank],
+           filters: [{dimension: payment_method, op: in, values: [UPI]}], window: {preset: last_14_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: td_trend_30d
+    question: "Daily technical decline rate over the last 30 days"
+    plan: {route: catalog, intent: trend, metric: technical_decline_rate, grain: day, window: {preset: last_30_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: gmv_by_region_mtd
+    question: "GMV by region, month to date"
+    plan: {route: catalog, intent: breakdown, metric: gmv, dimensions: [region], window: {preset: month_to_date}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: card_sr_by_network_wow
+    question: "Compare card success rate by network, this week vs last week"
+    plan: {route: catalog, intent: compare_periods, metric: success_rate, dimensions: [card_network],
+           filters: [{dimension: payment_method, op: in, values: [CARD]}],
+           window: {preset: last_7_days}, baseline: {preset: previous_7_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: settlement_vs_gmv
+    question: "Why doesn't the settled amount match GMV for the last 7 days?"
+    plan: {route: catalog, intent: reconcile, metric: settled_net, window: {preset: last_7_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: data_complete_last_week
+    question: "Is last week's transaction data complete?"
+    plan: {route: catalog, intent: data_quality, metric: attempts, window: {preset: last_7_days}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21
+  - name: hourly_sr_yesterday
+    question: "Hourly success rate yesterday"
+    plan: {route: catalog, intent: trend, metric: success_rate, grain: hour, window: {preset: yesterday}}
+    verified_by: sherpa-team
+    verified_at: 2026-11-21

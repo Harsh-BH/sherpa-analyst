@@ -1,0 +1,30 @@
+# Single source of truth for access control. CONTRACT (owner: master).
+# db/roles.py generates the Postgres roles, column-level GRANTs and RLS policies from this file,
+# and sherpa/guard.py uses the same exposed_tables as its column allowlist, so the app's
+# explained refusals and the database's enforcement cannot drift apart (tests assert they match).
+
+app_role: sherpa_app          # writes app.runs; cannot read analytics.*
+
+personas:
+  head:
+    label: "Business head (all regions)"
+    db_role: sherpa_head
+    regions: [North, South, East, West]
+  rm_south:
+    label: "Regional manager, South"
+    db_role: sherpa_rm_south
+    regions: [South]
+
+# Tables (schema analytics) and the columns personas may read.
+# Tables with a `region` column get RLS: region = ANY(persona.regions).
+exposed_tables:
+  transactions: [txn_id, merchant_id, region, merchant_category, city_tier, created_at, txn_date, txn_hour,
+                 cycle_date, amount_paise, payment_method, card_network, issuer_bank_id, gateway, device,
+                 status, decline_type, decline_code, attempt_no]
+  merchants: [merchant_id, display_name, mcc, category, city, city_tier, region, onboarded_on]
+  banks: [bank_id, name, bank_type]
+  settlements: [settlement_id, merchant_id, region, cycle_date, settlement_date, txn_count, gross_paise,
+                refund_paise, fee_paise, net_paise, utr, status]
+  dq_daily: [txn_date, region, gateway, raw_events, distinct_txns, duplicate_events, null_issuer_nonwallet,
+             max_ingest_lag_s]
+  data_version: [version, seed, data_start, as_of, generated_at, row_count]
