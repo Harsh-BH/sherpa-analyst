@@ -13,10 +13,11 @@ from .drivers import NONE_LABEL
 
 DUP_MIN_EVENTS = 100        # a day x gateway with this many duplicate events ...
 DUP_MIN_SHARE = 0.005       # ... or this share of its events is worth a warning
-GAP_RATIO = 0.10            # an hour below 10% of its usual volume is a gap
-# ponytail: fixed floor so near-empty hours (heavy filters, night) can't flag Poisson zeros as gaps;
-# a per-hour Poisson test would be the upgrade if filtered views need gap detection.
-GAP_MIN_BASELINE = 20       # only test hours whose 7-day median is at least this many attempts
+GAP_RATIO = 0.10            # an hour below 10% of its usual volume (7-day median) is a gap candidate
+# A run of consecutive candidate hours is reported only if it should have held >= GAP_MIN_EXPECTED attempts:
+# one empty night hour that usually sees 3 attempts is noise (Poisson P(0) = 5%), six empty hours that
+# usually see 300 are an outage. Seeing <= 10% of 20 expected has Poisson probability < 1e-6.
+GAP_MIN_EXPECTED = 20
 _SEVERITY = {"error": 0, "warn": 1, "info": 2}
 
 
@@ -70,7 +71,8 @@ def run_checks(dq_daily: pd.DataFrame, hourly: pd.DataFrame, *, window: TimeWind
 
 def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
     """Hours in [start, end] whose attempts fall below GAP_RATIO x the median of the same hour and gateway
-    over the 7 preceding days; consecutive gap hours of a gateway merge into one error."""
+    over the 7 preceding days; consecutive such hours of a gateway merge into one run, reported as an error
+    when the run usually holds >= GAP_MIN_EXPECTED attempts."""
     if hourly.empty or end < start:
         return []
     h = hourly.assign(txn_date=_dates(hourly["txn_date"]))
@@ -87,7 +89,7 @@ def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
             continue
         med = att.loc[hist].groupby(level=["txn_hour", "gateway"]).median()
         cur = att.loc[d]
-        flagged = (med >= GAP_MIN_BASELINE) & (cur < GAP_RATIO * med)
+        flagged = (med > 0) & (cur < GAP_RATIO * med)
         gaps += [(gw, d, hr, int(cur[(hr, gw)]), float(med[(hr, gw)])) for hr, gw in flagged[flagged].index]
 
     out = []
@@ -100,12 +102,14 @@ def _gaps(hourly: pd.DataFrame, start: date, end: date) -> list[DQWarning]:
         else:
             runs.append([g])
     for run in runs:
+        got, usual = sum(g[3] for g in run), sum(g[4] for g in run)
+        if usual < GAP_MIN_EXPECTED:
+            continue
         gw, (d0, h0), (d1, h1) = run[0][0], run[0][1:3], run[-1][1:3]
         stop = pd.Timestamp(d1) + pd.Timedelta(hours=h1 + 1)
         same_day = stop <= pd.Timestamp(d0 + timedelta(days=1))
         rng = (f"{_d(d0)} {h0:02d}:00–{stop:%H}:00 IST" if same_day
                else f"{_d(d0)} {h0:02d}:00 – {_d(stop.date())} {stop:%H}:00 IST")
-        got, usual = sum(g[3] for g in run), sum(g[4] for g in run)
         what = "has no data" if got == 0 else f"has almost no data ({got:,} attempts vs ~{usual:,.0f} usual)"
         out.append(DQWarning(
             check="missing_data", severity="error", message=f"{gw} {what} on {rng}.",

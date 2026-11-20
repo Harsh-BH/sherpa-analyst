@@ -77,3 +77,15 @@ def test_nulls_and_freshness():
     ws = run_checks(daily, clean_hourly(), window=late, as_of=AS_OF)
     assert [w.check for w in ws] == ["freshness", "nulls"]      # days after as_of are not reported as gaps
     assert ws[0].values["days_missing"] == 2 and "37 non-wallet" in ws[1].message
+
+
+def test_low_volume_gap_is_one_run_and_quiet_hours_are_not_gaps():
+    # a filtered view: night hours usually see 2-7 attempts each, too few to judge one hour alone
+    hourly = clean_hourly().assign(attempts=lambda d: [max(1, SHAPE[h] // 8) + (i % 2)
+                                                       for i, h in enumerate(d["txn_hour"])])
+    d = hourly["txn_date"]
+    hourly.loc[(d == date(2026, 11, 16)) & (hourly["gateway"] == "PG_C") & hourly["txn_hour"].between(2, 7), "attempts"] = 0
+    hourly.loc[(d == date(2026, 11, 18)) & (hourly["gateway"] == "PG_A") & (hourly["txn_hour"] == 3), "attempts"] = 0
+    [w] = run_checks(clean_daily(), hourly, window=WINDOW, as_of=AS_OF)
+    assert w.message == "PG_C has no data on 16 Nov 02:00–08:00 IST."
+    assert w.values["hours"] == 6
