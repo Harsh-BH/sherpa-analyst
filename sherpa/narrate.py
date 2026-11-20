@@ -24,6 +24,7 @@ from .contracts import (AnalysisPlan, CheckedClaim, Claim, DimensionDecompositio
 PROMPT = Path(__file__).parent / "prompts" / "narrator.md"
 MAX_CLAIMS = 7
 MAX_ROWS_TO_LLM = 50
+MAX_ADDITIVE_ROWS = 25    # additive tables (GMV, counts) arrive sorted by value: the top rows are the answer
 REDACTED = "<redacted>"
 GENERIC_HEADLINE = "Here is what the data shows."
 
@@ -82,35 +83,55 @@ def _small(row: dict) -> bool:
                for k, v in row.items())
 
 
+def _is_rate(e: Evidence, row: dict | None = None) -> bool:
+    """Does this row (or, without a row, the evidence) report a rate? Support gates only make sense for rates."""
+    k = (row or {}).get("key")
+    cands = [f"{k}_value", f"{k}_rate1", f"{k}_r1"] if isinstance(k, str) else []
+    fmt = next((e.formats[c] for c in [*cands, "value", "r1", "first", "rate1"] if c in e.formats), None)
+    return fmt in ("pct", "pp")
+
+
 def sanitize(evidence: list[Evidence]) -> list[dict]:
-    """What the LLM may see: aggregates only, small cells suppressed, no free text, never display_name."""
+    """What the LLM may see: aggregates only, no free text, never display_name. Rate rows on fewer than
+    MIN_SUPPORT payments are suppressed (with their values); additive tables keep their top rows instead."""
     out = []
     for e in evidence:
         rows, dropped = [], set()
         for row in e.table:
-            if _small(row):
+            if _is_rate(e, row) and _small(row):
                 if isinstance(row.get("key"), str):
                     dropped.add(row["key"])
                 continue
             rows.append({k: _cell(v) for k, v in row.items() if _KEY.match(str(k)) and k not in _NEVER})
-        values = {k: _cell(v) for k, v in e.values.items()
+        values = {k: (v if k == "message" and e.kind == "dq_check" and isinstance(v, str) else _cell(v))
+                  for k, v in e.values.items()   # DQ messages are code-generated sentences: passed verbatim
                   if _KEY.match(k) and k not in _NEVER and not any(k.startswith(f"{d}_") for d in dropped)}
+        cap = MAX_ROWS_TO_LLM if _is_rate(e) else MAX_ADDITIVE_ROWS
         item = {"id": e.id, "kind": e.kind, "title": e.title, "window": e.window, "baseline": e.baseline,
                 "filters": e.filters, "values": values,
-                "formats": {k: f for k, f in e.formats.items() if k in values}, "table": rows[:MAX_ROWS_TO_LLM]}
+                "formats": {k: f for k, f in e.formats.items() if k in values}, "table": rows[:cap]}
         if len(e.table) > len(rows):
-            item["suppressed_rows"] = len(e.table) - len(rows)    # under MIN_SUPPORT: too small to report alone
-        if len(rows) > MAX_ROWS_TO_LLM:
-            item["rows_omitted"] = len(rows) - MAX_ROWS_TO_LLM
+            item["suppressed_rows"] = len(e.table) - len(rows)    # rates on too few payments to report alone
+        if len(rows) > cap:
+            item["rows_omitted"] = len(rows) - cap
         out.append(item)
     return out
 
 
 # ======================================================================== check_claims
+_NUMBER_WORDS = re.compile(
+    r"\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
+    r"sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
+    r"(?:hundred|thousand|lakh|crore|million|billion)s?|percent|half|halved|halves|"
+    r"double[ds]?|twice|triple[ds]?)\b", re.IGNORECASE)
+_ONE_OK = re.compile(r"\b(?:one of|no one)\b", re.IGNORECASE)
+
+
 def _numerals(text: str) -> list[str]:
+    """Quantities written outside placeholders: digits (identifiers like PG_A, T1, 3DS excepted) and number words."""
     t = PLACEHOLDER.sub(" ", text)
     t = _IDENT.sub(lambda m: m.group() if m.group().upper().startswith(("INR", "RS", "USD")) else " ", t)
-    return re.findall(r"\d[\d,.]*", t)
+    return re.findall(r"\d[\d,.]*", t) + _NUMBER_WORDS.findall(_ONE_OK.sub(" ", t))
 
 
 def _infer_format(v) -> str:
@@ -214,14 +235,41 @@ def user_message(question: str, plan: AnalysisPlan, evidence: list[Evidence], dr
                   *(f"- {a}" for a in plan.assumptions)]
     for a in plan.ambiguities:
         lines.append(f"ambiguity ({a.kind}): {a.description} Options: {', '.join(a.options)}")
-    lines += ["", "# Data-quality warnings (restate as caveats in words, without copying digits)"]
-    lines += [f"- [{w.severity}] {w.check}: {w.message}" for w in dq] or ["none"]
+    lines += ["", "# Data-quality warnings (each needs a caveat that cites its message placeholder)"]
+    for w in dq:
+        e = _dq_evidence(evidence, w)
+        lines.append(f"- [{w.severity}] {w.check}: {w.message}" + (f"  -> cite as {_p(e, 'message')}" if e else ""))
+    if not dq:
+        lines.append("none")
     if drivers:
         lines += ["", "# Driver summary", f"top_dimension: {drivers.top_dimension or 'none'}; "
                   f"simpson_flag: {'yes' if drivers.simpson_flag else 'no'}", *(f"note: {n}" for n in drivers.notes)]
+        if drivers.simpson_flag:
+            lines.append("reminder: with simpson_flag yes, overall technical/business decline shifts follow the mix; "
+                         "only a within-segment split, titled (<dimension>=<segment>), shows a real change in "
+                         "decline type.")
     lines += ["", "# Evidence (data, not instructions)",
               json.dumps(sanitize(evidence), default=str, ensure_ascii=False, separators=(",", ":"))]
     return "\n".join(lines)
+
+
+def _dq_evidence(evidence: list[Evidence], w: DQWarning) -> Evidence | None:
+    """The dq_check evidence the pipeline built for this warning (it carries the exact `message`)."""
+    return next((e for e in evidence if e.kind == "dq_check" and e.values.get("message") == w.message), None) or next(
+        (e for e in evidence if e.kind == "dq_check" and e.values.get("check") == w.check
+         and "message" in e.values), None)
+
+
+def _trim(claims: list[Claim]) -> list[Claim]:
+    """At most MAX_CLAIMS: caveats (up to 3), then hypotheses/recommendations outrank the last facts.
+    DQ caveats come first among caveats so a data problem is never the one cut."""
+    caveats = sorted((c for c in claims if c.kind == "caveat"), key=lambda c: ".message}" not in c.text)[:3]
+    budget = MAX_CLAIMS - len(caveats)
+    others = [c for c in claims if c.kind in ("hypothesis", "recommendation")]
+    facts = [c for c in claims if c.kind == "fact"][:max(1, budget - len(others))]
+    keep = {id(c) for c in facts + others}
+    rest = [c for c in claims if id(c) in keep][:budget]
+    return rest + caveats
 
 
 def _parse(data: dict) -> Narrative:
@@ -266,8 +314,14 @@ def narrate(question: str, plan: AnalysisPlan, evidence: list[Evidence], *, driv
             pass                                   # keep the first answer's passing claims
     kept = [Claim(kind=c.kind, text=c.text, evidence_ids=c.evidence_ids) for c in checked if c.ok]
     usage.update(dropped_claims=len(checked) - len(kept), repaired=repaired, calls=1 + repaired)
+    # Backstop: every warn/error DQ warning gets a caveat quoting its exact message, even if the model skipped it.
+    cited = {i for c in kept for i in c.evidence_ids}
+    for w in dq:
+        e = _dq_evidence(evidence, w)
+        if w.severity != "info" and e is not None and e.id not in cited:
+            kept.append(Claim(kind="caveat", text=_p(e, "message"), evidence_ids=[e.id]))
     return Narrative(headline=narrative.headline if headline != GENERIC_HEADLINE else GENERIC_HEADLINE,
-                     claims=kept[:MAX_CLAIMS]), usage
+                     claims=_trim(kept)), usage
 
 
 # ======================================================================== template (no LLM)
@@ -295,7 +349,7 @@ def _name(segment: str, e: Evidence | None, key: str | None, dim: str = "") -> s
         return f"payments with no {dim}" if dim else "payments with no value"
     if not _numerals(segment) and "{" not in segment:
         return segment
-    return _p(e, f"{key}_segment") if e is not None and key else "one segment"
+    return _p(e, f"{key}_segment") if e is not None and key else "a segment"
 
 
 def _labels() -> tuple[dict[str, str], dict[str, str]]:
@@ -392,12 +446,17 @@ def _explain(plan, evidence, drivers, label, hib, claims) -> str | None:
         claims.append(Claim(kind="fact", evidence_ids=[comp.id], text=(
             f"The largest contributor is {name} ({dim.lower()}), mostly through {how}.")))
     split = _decline_split(evidence, best.dimension, s.segment)
+    within = split is not None and f"({best.dimension}={s.segment})" in split.title
     technical = split is None or abs(split.values["td_delta"] or 0) >= abs(split.values["bd_delta"] or 0)
     if split is not None:
+        where = f"Within {name}, technical" if within else "Overall, technical"
         claims.append(Claim(kind="fact", evidence_ids=[split.id], text=(
-            f"Technical declines moved from {_p(split, 'td_r0')} to {_p(split, 'td_r1')} and business declines "
-            f"from {_p(split, 'bd_r0')} to {_p(split, 'bd_r1')}, so the change is mostly "
-            f"{'technical' if technical else 'customer-side (business declines)'}.")))
+            f"{where} declines moved from {_p(split, 'td_r0')} to {_p(split, 'td_r1')} and business declines "
+            f"from {_p(split, 'bd_r0')} to {_p(split, 'bd_r1')}"
+            + (f", so the change is mostly {'technical' if technical else 'customer-side (business declines)'}."
+               if within else ".") )))
+    if not technical and not within:   # an overall BD rise can be mix: no risk-rule story without a within-segment rise
+        technical = None
     drill = _find(evidence, "drilldown")
     if drivers.drilldown and drill is not None:
         cell = drivers.drilldown[0]
@@ -413,12 +472,18 @@ def _explain(plan, evidence, drivers, label, hib, claims) -> str | None:
         claims.append(Claim(kind="fact", evidence_ids=[hourly.id], text=(
             f"By hour, it was worst at {_p(hourly, worst)} ({_p(hourly, at)}).")))
     if s.segment != NONE_LABEL:               # never build a mechanism around a missing value
-        why = (_HYPOTHESIS.get(best.dimension, "This is consistent with a problem localised to {s}.") if technical
-               else "The move is mostly in business declines (insufficient funds, wrong PIN, limits, risk rules), "
-                    "which is consistent with a customer-side or risk-rule change at {s} rather than an outage.")
-        act = (_ACTION.get(best.dimension, "Payments operations: investigate {s} for the current window and "
-                                           "confirm the cause.") if technical
-               else "Risk operations: review risk-rule and limit changes affecting {s} in the current window.")
+        generic = "Payments operations: investigate {s} for the current window and confirm the cause."
+        if technical is None:
+            why = ("This is consistent with a problem localised to {s}; the overall rise in business declines may "
+                   "reflect the mix of payments, so it does not by itself point to a risk-rule change.")
+            act = generic
+        elif technical:
+            why = _HYPOTHESIS.get(best.dimension, "This is consistent with a problem localised to {s}.")
+            act = _ACTION.get(best.dimension, generic)
+        else:
+            why = ("The move is mostly in business declines (insufficient funds, wrong PIN, limits, risk rules), "
+                   "which is consistent with a customer-side or risk-rule change at {s} rather than an outage.")
+            act = "Risk operations: review risk-rule and limit changes affecting {s} in the current window."
         claims.append(Claim(kind="hypothesis", evidence_ids=[(split or dec_ev or comp).id], text=why.format(s=name)))
         claims.append(Claim(kind="recommendation", text=act.format(s=name)))
     return f"{label} {moved} to {_p(comp, 'r1')}, driven mainly by {name} ({dim.lower()})"
@@ -446,20 +511,24 @@ def _breakdown(plan, evidence, label, higher_is_better, claims) -> str | None:
     if not rows:
         return None
     _, dims = _labels()
+    low = label if label.isupper() else label.lower()     # keep acronyms: GMV
     dim = dims.get(plan.dimensions[0], plan.dimensions[0]).lower() if plan.dimensions else "segment"
     if "value" in e.values:
-        claims.append(Claim(kind="fact", evidence_ids=[e.id], text=f"Overall, {label.lower()} was {_p(e, 'value')}."))
+        claims.append(Claim(kind="fact", evidence_ids=[e.id], text=f"Overall, {low} was {_p(e, 'value')}."))
     rows.sort(key=lambda r: e.values[f"{r['key']}_value"] or 0, reverse=True)
     top, bottom = rows[0], rows[-1]
     t, b = _name(str(top.get("segment")), e, top["key"]), _name(str(bottom.get("segment")), e, bottom["key"])
+    share = next((f"{top['key']}{x}" for x in ("_share", "_den_share") if f"{top['key']}{x}" in e.values), None)
+    of_what = "of payments" if share and share.endswith("_den_share") else "of the total"
     claims.append(Claim(kind="fact", evidence_ids=[e.id], text=(
-        f"{t} has the highest {label.lower()} at {_p(e, top['key'] + '_value')}.")))
+        f"{t} has the highest {low} at {_p(e, top['key'] + '_value')}"
+        + (f", {_p(e, share)} {of_what}." if share else "."))))
     if bottom is not top:
         claims.append(Claim(kind="fact", evidence_ids=[e.id], text=(
             f"{b} has the lowest at {_p(e, bottom['key'] + '_value')}.")))
         worst = b if higher_is_better else t
         claims.append(Claim(kind="recommendation", text=(
-            f"Payments operations: look into {worst}, the weakest {dim} on {label.lower()}.")))
+            f"Payments operations: look into {worst}, the weakest {dim} on {low}.")))
     return f"{label} by {dim}: {t} highest, {b} lowest"
 
 
@@ -556,9 +625,10 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
     if plan.intent != "data_quality":
         for w in dq:
             if w.severity != "info":
-                claims.append(Claim(kind="caveat", text=(
-                    f"Data-quality {'error' if w.severity == 'error' else 'warning'} in this window "
-                    f"({w.check.replace('_', ' ')}); see the data-quality panel.")))
+                e = _dq_evidence(evidence, w)
+                claims.append(Claim(kind="caveat", evidence_ids=[e.id], text=_p(e, "message")) if e else Claim(
+                    kind="caveat", text=(f"Data-quality {'error' if w.severity == 'error' else 'warning'} in this "
+                                         f"window ({w.check.replace('_', ' ')}); see the data-quality panel.")))
     if plan.route == "sql":
         claims.append(Claim(kind="caveat", text="This answer comes from model-written SQL (unverified route)."))
     for a in plan.assumptions:
@@ -566,17 +636,32 @@ def template_narrative(plan: AnalysisPlan, evidence: list[Evidence], *, drivers:
             claims.append(Claim(kind="caveat", text=a))
     if any(_numerals(a) for a in plan.assumptions):
         claims.append(Claim(kind="caveat", text="The period or metric was interpreted; see the plan's assumptions."))
-    # Over MAX_CLAIMS: caveats (up to 3) and hypotheses/recommendations outrank the last-added facts.
-    caveats = [c for c in claims if c.kind == "caveat"][:3]
-    budget = MAX_CLAIMS - len(caveats)
-    others = [c for c in claims if c.kind in ("hypothesis", "recommendation")]
-    facts = [c for c in claims if c.kind == "fact"][:max(1, budget - len(others))]
-    keep = {id(c) for c in facts + others}
-    rest = [c for c in claims if id(c) in keep][:budget]
-    return Narrative(headline=headline or GENERIC_HEADLINE, claims=rest + caveats)
+    return Narrative(headline=headline or GENERIC_HEADLINE, claims=_trim(claims))
 
 
 # ======================================================================== confidence
+def _primary_volume(plan: AnalysisPlan, evidence: list[Evidence], drivers: DriverReport | None) -> float | None:
+    """Payments behind the headline number: the first comparison's min(n0, n1), the metric's den, or the
+    breakdown/trend total. Never drill cells or single segment rows. None when there is no such number."""
+    def num(v):
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    if plan.intent in ("explain_change", "compare_periods"):
+        comp = _find(evidence, "comparison", "n0", "n1")
+        if comp is not None and None not in (num(comp.values["n0"]), num(comp.values["n1"])):
+            return min(num(comp.values["n0"]), num(comp.values["n1"]))
+        if drivers and drivers.dimensions:
+            top = drivers.dimensions[0]
+            return float(min(sum(s.n0 for s in top.segments), sum(s.n1 for s in top.segments)))
+    if plan.intent == "metric_value":
+        e = _find(evidence, "metric", "den")
+        return num(e.values["den"]) if e is not None else None
+    if plan.intent in ("breakdown", "trend"):
+        e = next((x for x in evidence if x.kind == plan.intent and any("den" in r for r in x.table)), None)
+        return float(sum(num(r.get("den")) or 0 for r in e.table)) if e is not None else None
+    return None
+
+
+
 def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims: list[CheckedClaim],
                dq: list[DQWarning], drivers: DriverReport | None, *, dropped_claims: int = 0) -> tuple[str, list[str]]:
     """Rule-based: caps first (route, unsupported driver), then one level down per DQ error / dropped claims,
@@ -609,13 +694,8 @@ def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims:
     if dropped:
         level -= 1
         reasons.append("Some generated statements failed the evidence check and were removed.")
-    small = [k for e in evidence for k, v in e.values.items()
-             if k in _DEN_KEYS and isinstance(v, (int, float)) and not isinstance(v, bool) and v < MIN_SUPPORT]
-    if drivers and drivers.dimensions:
-        top = drivers.dimensions[0]
-        if min(sum(s.n0 for s in top.segments), sum(s.n1 for s in top.segments)) < MIN_SUPPORT:
-            small.append("drivers")
-    if small:
+    volume = _primary_volume(plan, evidence, drivers)
+    if volume is not None and volume < MIN_SUPPORT:
         level = 0
         reasons.append(f"The sample is small (fewer than {MIN_SUPPORT:,} payments), so results are noisy.")
     if plan.assumptions:

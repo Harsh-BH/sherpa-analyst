@@ -141,3 +141,46 @@ def test_runs_are_logged():
     b = pipeline.answer("SR", "head", plan=_plan(intent="metric_value", metric="success_rate",
                         window=TimeWindow(preset="yesterday")))
     assert any(r["run_id"] == b.run_id for r in runs.recent_runs(20))
+
+
+def test_denominator_not_asked_when_both_readings_agree(truth):
+    """S3: cards fell under both definitions (-0.67 pp / -1.10 pp): same story, so no clarification."""
+    from sherpa.contracts import Ambiguity
+    s = truth["S3"]
+    b = pipeline.answer(s["question"], "head", plan=_plan(
+        intent="explain_change", metric="success_rate", window=_win(s["window"]), baseline=_win(s["baseline"]),
+        filters=[Filter(**f) for f in s.get("filters", [])],
+        ambiguities=[Ambiguity(kind="denominator", description="drop-offs?",
+                               options=["success_rate", "success_rate_incl_dropoffs"])]))
+    assert b.status == "answered", (b.status, b.clarification)
+    assert any("same story" in a for a in b.plan.assumptions)
+
+
+def test_truncated_governed_result_is_refused_not_cut(monkeypatch):
+    """Review R15: a governed breakdown that hits the row cap must not silently drop groups."""
+    from sherpa import db as dbmod
+    real = dbmod.run_query
+    monkeypatch.setattr(dbmod, "run_query", lambda sql, persona, **k: real(sql, persona, max_rows=3, use_cache=False))
+    b = pipeline.answer("GMV by merchant", "head", plan=_plan(intent="breakdown", metric="gmv", dimensions=["merchant"],
+                        window=TimeWindow(preset="last_7_days")))
+    assert b.status == "refused" and "cut off" in b.refusal.reason
+
+
+def test_short_baseline_for_totals_is_refused():
+    """Review R13: last month vs a clamped 10-day baseline would show a fake GMV jump."""
+    b = pipeline.answer("GMV last month vs before", "head", plan=_plan(intent="compare_periods", metric="gmv",
+                        window=TimeWindow(preset="last_month")))
+    assert b.status == "refused" and "same-length" in b.refusal.reason
+
+
+def test_short_baseline_for_rates_is_stated():
+    b = pipeline.answer("SR last month vs before", "head", plan=_plan(intent="compare_periods", metric="success_rate",
+                        window=TimeWindow(preset="last_month")))
+    assert b.status == "answered" and any("shortened" in a for a in b.plan.assumptions)
+
+
+def test_settlement_metric_explain_uses_a_settlement_dimension():
+    """Review R16: explain_change on a settlement metric used payment_method, which settlements do not have."""
+    b = pipeline.answer("why did payouts drop", "head", plan=_plan(intent="explain_change", metric="settled_net",
+                        window=TimeWindow(preset="last_7_days")))
+    assert b.status == "answered", (b.status, b.error)

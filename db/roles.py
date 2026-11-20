@@ -19,7 +19,22 @@ from sherpa.config import load_access, settings
 from sherpa.contracts import Access
 
 SCHEMAS = "raw, analytics, app"
-PERSONA_SETTINGS = {"default_transaction_read_only": "on", "statement_timeout": "'5s'", "search_path": "analytics"}
+PERSONA_SETTINGS = {"default_transaction_read_only": "on", "statement_timeout": "'5s'", "search_path": "analytics",
+                    "temp_file_limit": "'512MB'"}   # superuser-only GUC: a persona cannot raise it; the disk is nearly full
+# EXECUTE revoked from PUBLIC in each database (adversarial review R1, R8). Grants and RLS already protect rows;
+# these close what is left: functions that run SQL passed as a string, touching other sessions, writing large
+# objects, and server metadata. Nothing in the app calls them as a persona.
+REVOKED_FUNCTIONS = [
+    "ts_stat(text)", "ts_stat(text,text)", "ts_rewrite(tsquery,text)",
+    "query_to_xml(text,boolean,boolean,text)", "query_to_xmlschema(text,boolean,boolean,text)",
+    "query_to_xml_and_xmlschema(text,boolean,boolean,text)", "cursor_to_xml(refcursor,integer,boolean,boolean,text)",
+    "cursor_to_xmlschema(refcursor,boolean,boolean,text)",
+    "pg_cancel_backend(integer)", "pg_terminate_backend(integer,bigint)",
+    "lo_create(oid)", "lo_creat(integer)", "lo_from_bytea(oid,bytea)", "lo_import(text)", "lo_import(text,oid)",
+    "lo_export(oid,text)",
+    "pg_sleep(double precision)", "pg_sleep_for(interval)", "pg_sleep_until(timestamp with time zone)",
+    "current_setting(text)", "current_setting(text,boolean)", "pg_get_userbyid(oid)", "pg_relation_filepath(regclass)",
+]
 _IDENT = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
@@ -49,12 +64,26 @@ def build_sql(access: Access, db_name: str, password: str) -> str:
             f"ALTER ROLE {role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS "
             f"NOINHERIT PASSWORD {_lit(password)};",
         ]
+    # a role that can log in can ALTER ROLE itself (review R9): wipe every setting, then set ours
+    for role in [*personas, app]:
+        out += [f"ALTER ROLE {role} RESET ALL;", f"ALTER ROLE {role} IN DATABASE {_ident(db_name)} RESET ALL;"]
     for role in personas:
         out += [f"ALTER ROLE {role} SET {k} = {v};" for k, v in PERSONA_SETTINGS.items()]
+    # a sherpa_* role no longer in access.yaml can no longer log in, and loses everything it held here (review R12)
+    keep = ", ".join(f"'{r}'" for r in [*personas, app])
+    out.append(
+        "DO $$ DECLARE r text; BEGIN FOR r IN SELECT rolname FROM pg_roles WHERE rolname LIKE 'sherpa\\_%' "
+        f"AND rolname <> ALL (ARRAY[{keep}]) LOOP EXECUTE format('ALTER ROLE %I NOLOGIN', r); "
+        "EXECUTE format('DROP OWNED BY %I', r); END LOOP; END $$;"
+    )
 
     out.append(f"\n-- start from nothing (database {_ident(db_name)})")
     out += [
-        f"REVOKE TEMPORARY ON DATABASE {db_name} FROM PUBLIC;",
+        # our container only: nobody but the superuser connects to postgres/template1 (review R10)
+        "REVOKE CONNECT, TEMPORARY ON DATABASE postgres, template1 FROM PUBLIC;",
+        f"REVOKE CONNECT, TEMPORARY ON DATABASE {db_name} FROM PUBLIC;",
+        f"GRANT CONNECT ON DATABASE {db_name} TO {', '.join([*personas, app])};",
+        *(f"REVOKE EXECUTE ON FUNCTION pg_catalog.{f} FROM PUBLIC;" for f in REVOKED_FUNCTIONS),
         f"REVOKE ALL ON SCHEMA {SCHEMAS} FROM {everyone};",
         f"REVOKE ALL ON ALL TABLES IN SCHEMA {SCHEMAS} FROM {everyone};",  # also drops column grants
     ]

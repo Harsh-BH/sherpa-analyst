@@ -141,7 +141,7 @@ def confidence(plan: AnalysisPlan, route: str, evidence: list[Evidence], claims:
 | kind | keys | table rows |
 |---|---|---|
 | metric | `value`, `num`, `den` | – |
-| breakdown | `value` (overall), `<segkey>_value`, `<segkey>_den` | `{segment, key, value, den}` |
+| breakdown | `value` (overall), `<segkey>_value`, `<segkey>_den`, `<segkey>_share` (additive: value / overall) or `<segkey>_den_share` (ratio: volume share) | `{segment, key, value, den}` |
 | trend | `first`, `last`, `change`, `min`, `max`, `min_at`, `max_at` (text) | `{bucket, value, den}` |
 | comparison | `r0`, `r1`, `delta`, `<segkey>_r0`, `<segkey>_r1`, `<segkey>_delta` | `{segment, key, r0, r1, delta, n0, n1}` |
 | decomposition / drilldown | as produced by `drivers.evidence_from_report` | rows carry `segment` + `key` |
@@ -168,7 +168,8 @@ def recon_bridge(recon: ReconResult) -> dict
 
 ```python
 # sherpa/pipeline.py
-def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> AnswerBundle
+def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
+           on_stage: Callable[[str], None] | None = None) -> AnswerBundle   # on_stage(name): plan, triage, analysis, dq, narrate, check
 #   plan given (Explore mode or a clarification choice): skip the planner.
 #   Never raises; failures become status="error" with a message. Always save_run().
 ```

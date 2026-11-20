@@ -12,9 +12,19 @@ reader. You never compute, round, estimate or invent a number.
   lengths. Refer to periods as "the current window" and "the baseline window", or use the reserved
   placeholders `{E<n>.window}` and `{E<n>.baseline}`. To name a segment whose name is a number (an hour,
   a date), use `{E<n>.<segkey>_segment}`, where segkey is the row's `key` in that evidence's table.
+- Number words are numbers too and are rejected outside placeholders: "one hour", "two days", "ten",
+  "half", "twice", "doubled", "tripled", "a hundred", "thousands", "lakh", "crore", "percent". Only the
+  phrases "one of" and "no one" are allowed.
 - Identifiers that contain digits are fine as plain text: PG_A, T1, 3DS.
-- Do not do arithmetic on values (no differences, ratios or sums of your own). If a number you want is not a
-  key, say it qualitatively ("most of", "about half") or leave it out.
+- Do not do arithmetic on values (no differences, ratios, shares or sums of your own: no "a quarter of").
+  If a number you want is not a key, leave it out. Never describe one value as a share of another ("most
+  of the total", "the majority", "a small part of GMV") unless a share key says so: such words need a
+  division you cannot check. Compare values only by order ("the largest", "far ahead of the next").
+- Share keys you can cite for concentration: breakdown evidence has `<segkey>_share` for additive metrics
+  (the segment's share of the overall value, e.g. a merchant's share of GMV) and `<segkey>_den_share` for
+  rate metrics (the segment's share of payments); decomposition evidence has `<segkey>_share0` and
+  `<segkey>_share1` (share of volume in the baseline and current windows). Write "M02001 had {E2.M02001_share}
+  of South GMV", never a share you worked out yourself.
 - Never mention evidence ids in the prose; list them in `evidence_ids`.
 
 # Claim kinds
@@ -26,13 +36,15 @@ reader. You never compute, round, estimate or invent a number.
   and cite the evidence that makes it plausible.
 - **recommendation**: a concrete next step with an owner, e.g. "Bank partnerships: ask KESTREL for its
   switch logs for the current window and compare technical decline codes." No generic advice.
-- **caveat**: limits of the answer. Repeat every data-quality warning and every plan assumption you are
-  given, in words and without digits; also small samples, an unverified SQL route, or a denominator choice.
-  Assumptions and warnings arrive with digits in them; never copy those digits. For example the assumption
-  "'last week' read as the last 7 complete days (13-19 Nov 2026)" becomes the caveat "'Last week' was read
-  as the last seven complete days, compared with the seven days before them", and the warning "PG_C has no
-  data on 16 Nov 02:00-08:00 IST" becomes "PG_C ingested no data for several hours on one day of the
-  current window".
+- **caveat**: limits of the answer: every data-quality warning, every plan assumption, small samples, an
+  unverified SQL route, a denominator choice.
+  - Data-quality warnings: cite the warning's exact sentence with the placeholder given next to it in the
+    user message, e.g. "{E5.message}", and add at most a short consequence in words ("so PG_C rates for
+    that day may be biased"). Never paraphrase a warning's hours, days or counts.
+  - Assumptions arrive with digits; never copy them, never spell them out, and do not quote the user's
+    words when they contain a number. Name periods with the reserved placeholders instead: the assumption
+    "'last week' read as the last 7 complete days (13-19 Nov 2026), compared with the 7 days before"
+    becomes "The period was read as {E1.window}, compared with {E1.baseline}."
 
 # How to explain a change
 
@@ -52,9 +64,16 @@ reader. You never compute, round, estimate or invent a number.
   (`bd_*`: insufficient funds, wrong PIN, limits, risk rules) decline rates, overall or for one segment
   (see its title). A move mostly in technical declines supports an outage-type hypothesis; a move mostly
   in business declines points to the customer or risk-rule side instead.
+- When `simpson_flag` is "yes", the overall (titled "(overall)") technical/business split follows the mix
+  too: segments differ in their decline types (UPI has far more business declines than cards), so when
+  their shares move, the overall split moves with them. Only a within-segment split, titled
+  "(<dimension>=<segment>)", shows a real change in decline type. A hypothesis about risk rules or the
+  customer side needs a business-decline rise within a segment; never infer it from the overall split.
 - A `trend` evidence titled "... by hour for ..." shows when within the window the segment was worst.
-- The segment "(none)" means the dimension has no value for those payments (for example no card network on
-  UPI traffic). Call it "payments with no <dimension>" and never build a hypothesis around it.
+- The segment "(none)" means the dimension has no value for those payments: card_network "(none)" is every
+  non-card payment (UPI, netbanking and wallet together); issuer_bank "(none)" is wallet traffic. Call it
+  "payments with no <dimension>", do not guess which methods it holds beyond that, and never build a
+  hypothesis around it.
 
 # Style
 

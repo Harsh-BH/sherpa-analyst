@@ -9,12 +9,12 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
 from . import charts, compiler, db, dq, drivers, llm, narrate, planner, reconcile, runs, triage
-from .config import AMBIGUITY_THRESHOLD, load_access, load_catalog
+from .config import AMBIGUITY_THRESHOLD, MIN_RATE_DELTA, load_access, load_catalog
 from .contracts import (AnalysisPlan, AnswerBundle, Clarification, ClarifyOption, Evidence, Filter,
                         QueryRejected, Refusal, TimeWindow, ValueFormat)
 
@@ -35,8 +35,12 @@ class _Run:
         self.timings: dict[str, int] = {}
         self.usage: dict[str, Any] = {}
 
-    def q(self, sql: str):
+    def q(self, sql: str, *, allow_truncated: bool = False):
         res = db.run_query(sql, self.persona)
+        if res.truncated and not allow_truncated:
+            # a cut-off breakdown silently drops groups (review R15); refuse rather than show a partial answer as complete
+            raise QueryRejected("cost", f"The result has more than {res.row_count:,} rows, so it would be cut off. "
+                                        "Narrow the window, add a filter or use fewer dimensions.", res.sql)
         self.timings["queries"] = self.timings.get("queries", 0) + 1
         self.timings["cache_hits"] = self.timings.get("cache_hits", 0) + int(res.cached)
         return res, res.df
@@ -96,15 +100,22 @@ def _breakdown_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter]) -> N
     res, df = r.q(sql)
     df = _frame(df, dims)
     df["value"] = [compiler.metric_value(m.name, n, d) for n, d in zip(df["num"], df["den"])]
-    df = df.sort_values("den", ascending=False)
+    # ratio metrics: biggest segments first (support); additive metrics: rank by the metric itself (top merchants by GMV)
+    df = df.sort_values("den" if m.type == "ratio" else "value", ascending=False)
     df["segment"] = df[dims].astype(str).agg(" · ".join, axis=1)
     keys = drivers._keys({sg: sg for sg in df["segment"]})
     df["key"] = df["segment"].map(keys)
     values: dict[str, Any] = {"value": out["current"][2]}
     formats: dict[str, ValueFormat] = {"value": _FMT[m.format]}
+    total_val, total_den = out["current"][2], float(df["den"].sum())
     for k, v, d in list(zip(df["key"], df["value"], df["den"]))[:25]:
         values[f"{k}_value"], formats[f"{k}_value"] = v, _FMT[m.format]
         values[f"{k}_den"], formats[f"{k}_den"] = d, "int"
+        # concentration claims ("X had a quarter of GMV") must cite a computed share, never an eyeballed one
+        if m.type == "simple" and total_val:
+            values[f"{k}_share"], formats[f"{k}_share"] = (v or 0) / total_val, "pct"
+        elif total_den:
+            values[f"{k}_den_share"], formats[f"{k}_den_share"] = d / total_den, "pct"
     rows = df[["segment", "key", *dims, "value", "den"]].head(200).to_dict("records")
     r.add(kind="breakdown", title=f"{m.label} by {', '.join(dims)}, {plan.window.label}", sql=[res_all.sql, res.sql],
           sql_hashes=[res_all.sql_hash, res.sql_hash], tables=res.tables, filters=_filters_text(filters),
@@ -184,7 +195,8 @@ def _explain_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter]):
     m = cat.metric(plan.metric)
     if m.type != "ratio":
         # Additive metrics: a change is the sum of segment changes; no mix/rate split needed.
-        _compare_evidence(r, plan.model_copy(update={"dimensions": plan.dimensions or ["payment_method"]}), filters)
+        default = next(d.name for d in cat.dimensions if d.driver and m.table in d.tables)
+        _compare_evidence(r, plan.model_copy(update={"dimensions": plan.dimensions or [default]}), filters)
         return None
     single = {f.dimension for f in filters if f.op == "in" and len(f.values) == 1}
     dims = plan.dimensions or [d.name for d in cat.dimensions if d.driver and m.table in d.tables and d.name not in single]
@@ -286,7 +298,7 @@ def _dq_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter], as_of) -> l
     common = dict(sql=[res1.sql, res2.sql], sql_hashes=[res1.sql_hash, res2.sql_hash], tables=["dq_daily", "transactions"],
                   filters=_filters_text(region_only), window=span.label)
     for w in warnings:
-        vals = dict(w.values) | {"check": w.check, "severity": w.severity}
+        vals = dict(w.values) | {"check": w.check, "severity": w.severity, "message": w.message}
         fmts = {k: ("text" if isinstance(v, str) or v is None else "int" if float(v).is_integer() else "float")
                 for k, v in vals.items()}
         r.add(kind="dq_check", title=f"Data quality: {w.message}", values=vals, formats=fmts, **common)
@@ -300,7 +312,7 @@ def _dq_evidence(r: _Run, plan: AnalysisPlan, filters: list[Filter], as_of) -> l
 
 
 def _sql_route_evidence(r: _Run, plan: AnalysisPlan) -> None:
-    res, df = r.q(plan.sql)
+    res, df = r.q(plan.sql, allow_truncated=True)
     values, formats = {}, {}
     num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
     for i, row in df.head(20).iterrows():
@@ -308,7 +320,8 @@ def _sql_route_evidence(r: _Run, plan: AnalysisPlan) -> None:
             k = f"r{i + 1}_{drivers._keys({c: c})[c]}"
             values[k] = None if pd.isna(row[c]) else float(row[c])
             formats[k] = "pct" if ("rate" in c.lower() and abs(values[k] or 0) <= 1) else "float"
-    r.add(kind="breakdown", title="Result of model-written SQL (unverified)", sql=[res.sql], sql_hashes=[res.sql_hash],
+    title = "Result of model-written SQL (unverified" + (f", first {res.row_count:,} rows only)" if res.truncated else ")")
+    r.add(kind="breakdown", title=title, sql=[res.sql], sql_hashes=[res.sql_hash],
           tables=res.tables, row_count=res.row_count, values=values, formats=formats,
           table=df.head(200).astype(object).where(df.head(200).notna(), None).to_dict("records"))
 
@@ -326,12 +339,20 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
         else:
             readings[mn] = out["current"][2]
     vals = [v for v in readings.values() if v is not None]
-    if len(vals) < 2 or max(vals) - min(vals) <= AMBIGUITY_THRESHOLD or plan.intent not in (*_CHANGE_INTENTS, "metric_value"):
+    if change:
+        # Ask only when the readings tell different stories: opposite directions, or material under one and not the other.
+        # Two drops of different size answer "why did it drop?" the same way, so we state the assumption instead.
+        def story(v: float) -> int:
+            return 0 if abs(v) < MIN_RATE_DELTA else (1 if v > 0 else -1)
+        agree = len({story(v) for v in vals}) <= 1
+    else:
+        agree = len(vals) < 2 or max(vals) - min(vals) <= AMBIGUITY_THRESHOLD
+    if agree or plan.intent not in (*_CHANGE_INTENTS, "metric_value"):
         alt = ", ".join(f"{cat.metric(k).label}: {'change ' if change else ''}"
                         f"{(v * 100 if v is not None else float('nan')):+.2f}{' pp' if change else '%'}"
                         for k, v in readings.items() if k != plan.metric and v is not None)
         note = f"Used {cat.metric(plan.metric).label} ({cat.metric(plan.metric).description.split('.')[0].lower()})."
-        return None, note + (f" The other definition gives a similar answer ({alt})." if alt and change else
+        return None, note + (f" The other definition tells the same story ({alt})." if alt and change else
                              (f" Other definition for reference: {alt}." if alt else ""))
     opts = []
     for mn, v in readings.items():
@@ -344,9 +365,19 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
 
 
 # ------------------------------------------------------------------ entry point
-def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> AnswerBundle:
+def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
+           on_stage: Callable[[str], None] | None = None) -> AnswerBundle:
+    """on_stage(name) is called as each stage starts: plan, triage, analysis, dq, narrate, check. It can never break a run."""
     t_start = time.perf_counter()
     r = _Run(persona)
+
+    def stage(name: str) -> None:
+        if on_stage is not None:
+            try:
+                on_stage(name)
+            except Exception:
+                pass
+
     bundle = AnswerBundle(run_id=uuid.uuid4().hex[:12], question=question, persona=persona, status="error")
     try:
         load_access().persona(persona)
@@ -356,6 +387,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         bundle.as_of = as_of
 
         t = time.perf_counter()
+        stage("plan")
         if plan is None:
             try:
                 plan, u = planner.plan(question, persona, as_of=as_of, data_start=data_start)
@@ -365,6 +397,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
                 return bundle
         t = r.tick("plan", t)
 
+        stage("triage")
         tri = triage.triage(plan, persona)
         bundle.plan = tri.plan
         t = r.tick("triage", t)
@@ -380,10 +413,25 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         base = None
         if plan.intent in _CHANGE_INTENTS:
             base = compiler.resolve_window(plan.baseline or compiler.default_baseline(win), as_of, data_start)
+            wlen, blen = (win.end - win.start).days + 1, (base.end - base.start).days + 1
+            if plan.baseline is None and blen != wlen:
+                # The data starts too late for a same-length comparison (review R13). Totals over different spans are not
+                # comparable; rates are, if we say so.
+                mdef = load_catalog().metric(plan.metric) if plan.metric else None
+                if mdef is None or mdef.type == "simple":
+                    bundle.status = "refused"
+                    bundle.refusal = Refusal(
+                        reason=f"Only {blen} day(s) of data exist before {win.label}, so a same-length comparison is not possible "
+                               f"for a total. Comparing {wlen} days with {blen} would show a fake jump.",
+                        suggestion="Pick a shorter window (for example the last 7 days), or compare a rate instead of a total.")
+                    return bundle
+                plan.assumptions.append(f"The comparison period is shortened to {base.label} ({blen} days) because the data starts "
+                                        f"on {data_start}. Rates are comparable across different lengths.")
         plan = plan.model_copy(update={"window": win, "baseline": base})
         bundle.plan, bundle.route = plan, plan.route
 
         filters = plan.filters
+        stage("analysis")
         if plan.route == "sql":
             _sql_route_evidence(r, plan)
         else:
@@ -413,15 +461,18 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         t = r.tick("analysis", t)
 
         if plan.route == "sql" or (plan.metric and load_catalog().metric(plan.metric).table == "transactions") or plan.intent in ("data_quality", "reconcile"):
+            stage("dq")
             bundle.dq = _dq_evidence(r, plan, filters, as_of)
         t = r.tick("dq", t)
 
+        stage("narrate")
         try:
             narr, u = narrate.narrate(question, plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = u
         except llm.LLMUnavailable:
             narr = narrate.template_narrative(plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = {"backend": "template"}
+        stage("check")
         bundle.headline, bundle.claims = narrate.check_claims(narr, r.evidence)
         t = r.tick("narrate", t)
 
