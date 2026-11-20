@@ -69,10 +69,15 @@ Start immediately (no DB needed): Q1, Q2, A1–A4, L1–L4, U1–U5, D4, D1. Nee
 | I1 | pipeline.answer | master | Q2,Q3,A2–A4,L2–L4,U2 | P0 | L | Completed |
 | I2 | merge wave 1, e2e tests | master | all wave 1 | P0 | M | Completed |
 | I3 | UI on real pipeline, demo dates | ui | I1 | P0 | S | Completed |
-| I4 | eval harness, 2 seeds, naive baseline | analytics | I1,D2 | P0 | L | In Progress |
+| I4 | eval harness, 2 seeds, naive baseline | analytics | I1,D2 | P0 | L | Completed |
 | I5 | adversarial review workflow + fixes | master | I2 | P0 | M | Completed |
-| I6 | README, demo script, full compose verify | master | I3,I4,I5 | P0 | M | In Progress |
-| I7 | final report, push | master | I6 | P0 | S | Pending |
+| I6 | README, demo script, full compose verify | master | I3,I4,I5 | P0 | M | Completed |
+| I7 | final report, push | master | I6 | P0 | S | Completed |
+
+## Final state
+
+- 391 tests pass (3 live-LLM tests deselected by default). Fresh two-seed eval on `2f13f1c`: Sherpa 56/56, naive baseline 17/56, unsupported numbers 0 vs 72.
+- Docker app image built and verified (health + pipeline inside the container), then removed to free disk.
 
 ## Adversarial review (I5): 24 findings, all reproduced by an independent skeptic, all fixed with regression tests
 
