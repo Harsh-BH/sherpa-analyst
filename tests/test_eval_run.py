@@ -63,3 +63,24 @@ def test_truth_version_must_match_db(env, monkeypatch):
     monkeypatch.setattr(run, "_data_version", lambda: {"version": "seed99-OTHER", "as_of": date(2026, 11, 19)})
     with pytest.raises(SystemExit, match="reseed or re-copy"):
         run.run_seed(99)
+
+
+def test_planted_cause_clarification_takes_the_default_and_asks_again(monkeypatch):
+    from sherpa.contracts import AnalysisPlan, Clarification, ClarifyOption
+    plan = AnalysisPlan(question="q", route="catalog", intent="explain_change", metric="success_rate")
+    opts = [ClarifyOption(label=m, plan_patch={"metric": m, "ambiguities": []}, preview="x")
+            for m in ("success_rate", "success_rate_incl_dropoffs")]
+    seen = []
+
+    def answer(question, persona, plan=None):
+        seen.append(plan)
+        if plan is None:
+            return AnswerBundle(run_id="r", question=question, persona=persona, status="clarify", plan=plan_,
+                                clarification=Clarification(question="which?", options=opts))
+        return AnswerBundle(run_id="r", question=question, persona=persona, status="answered", plan=plan)
+
+    plan_ = plan
+    monkeypatch.setattr(run, "_answer", answer)
+    out = run.run_sherpa({"id": "S3", "kind": "planted_cause", "persona": "head", "question": "q", "expected": {}})
+    assert out["followup"] == "success_rate" and seen[1].metric == "success_rate"
+    assert out["bundle"]["status"] == "answered"
