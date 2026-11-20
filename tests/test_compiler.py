@@ -75,12 +75,12 @@ def test_default_baseline():
         default_baseline(TimeWindow(preset="last_7_days"))
 
 
-def _queries_for(plan: AnalysisPlan) -> list[str]:
-    """How the pipeline turns a catalog plan into SQL (per intent)."""
-    window = resolve_window(plan.window, AS_OF, START)
+def queries_for(plan: AnalysisPlan, as_of: date = AS_OF, start: date = START) -> list[str]:
+    """How the pipeline turns a catalog plan into SQL (per intent). Also used by test_db."""
+    window = resolve_window(plan.window, as_of, start)
     baseline = None
     if plan.intent in ("compare_periods", "explain_change"):
-        baseline = resolve_window(plan.baseline, AS_OF, START) if plan.baseline else default_baseline(window)
+        baseline = resolve_window(plan.baseline, as_of, start) if plan.baseline else default_baseline(window)
     if plan.intent == "reconcile":
         return list(compile_recon_queries(window, plan.filters).values())
     if plan.intent == "data_quality":
@@ -97,7 +97,7 @@ def _queries_for(plan: AnalysisPlan) -> list[str]:
 @pytest.mark.parametrize("vq", load_catalog().verified_queries, ids=lambda v: v.name)
 def test_verified_queries_compile_and_pass_guard(vq):
     plan = AnalysisPlan.model_validate({"question": vq.question, **vq.plan})
-    queries = _queries_for(plan)
+    queries = queries_for(plan)
     assert queries
     for q in queries:
         g = check_sql(q)
