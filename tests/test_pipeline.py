@@ -141,3 +141,16 @@ def test_runs_are_logged():
     b = pipeline.answer("SR", "head", plan=_plan(intent="metric_value", metric="success_rate",
                         window=TimeWindow(preset="yesterday")))
     assert any(r["run_id"] == b.run_id for r in runs.recent_runs(20))
+
+
+def test_denominator_not_asked_when_both_readings_agree(truth):
+    """S3: cards fell under both definitions (-0.67 pp / -1.10 pp): same story, so no clarification."""
+    from sherpa.contracts import Ambiguity
+    s = truth["S3"]
+    b = pipeline.answer(s["question"], "head", plan=_plan(
+        intent="explain_change", metric="success_rate", window=_win(s["window"]), baseline=_win(s["baseline"]),
+        filters=[Filter(**f) for f in s.get("filters", [])],
+        ambiguities=[Ambiguity(kind="denominator", description="drop-offs?",
+                               options=["success_rate", "success_rate_incl_dropoffs"])]))
+    assert b.status == "answered", (b.status, b.clarification)
+    assert any("same story" in a for a in b.plan.assumptions)

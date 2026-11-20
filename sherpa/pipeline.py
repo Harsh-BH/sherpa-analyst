@@ -14,7 +14,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from . import charts, compiler, db, dq, drivers, llm, narrate, planner, reconcile, runs, triage
-from .config import AMBIGUITY_THRESHOLD, load_access, load_catalog
+from .config import AMBIGUITY_THRESHOLD, MIN_RATE_DELTA, load_access, load_catalog
 from .contracts import (AnalysisPlan, AnswerBundle, Clarification, ClarifyOption, Evidence, Filter,
                         QueryRejected, Refusal, TimeWindow, ValueFormat)
 
@@ -333,12 +333,20 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
         else:
             readings[mn] = out["current"][2]
     vals = [v for v in readings.values() if v is not None]
-    if len(vals) < 2 or max(vals) - min(vals) <= AMBIGUITY_THRESHOLD or plan.intent not in (*_CHANGE_INTENTS, "metric_value"):
+    if change:
+        # Ask only when the readings tell different stories: opposite directions, or material under one and not the other.
+        # Two drops of different size answer "why did it drop?" the same way, so we state the assumption instead.
+        def story(v: float) -> int:
+            return 0 if abs(v) < MIN_RATE_DELTA else (1 if v > 0 else -1)
+        agree = len({story(v) for v in vals}) <= 1
+    else:
+        agree = len(vals) < 2 or max(vals) - min(vals) <= AMBIGUITY_THRESHOLD
+    if agree or plan.intent not in (*_CHANGE_INTENTS, "metric_value"):
         alt = ", ".join(f"{cat.metric(k).label}: {'change ' if change else ''}"
                         f"{(v * 100 if v is not None else float('nan')):+.2f}{' pp' if change else '%'}"
                         for k, v in readings.items() if k != plan.metric and v is not None)
         note = f"Used {cat.metric(plan.metric).label} ({cat.metric(plan.metric).description.split('.')[0].lower()})."
-        return None, note + (f" The other definition gives a similar answer ({alt})." if alt and change else
+        return None, note + (f" The other definition tells the same story ({alt})." if alt and change else
                              (f" Other definition for reference: {alt}." if alt else ""))
     opts = []
     for mn, v in readings.items():
