@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -345,9 +345,19 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
 
 
 # ------------------------------------------------------------------ entry point
-def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> AnswerBundle:
+def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
+           on_stage: Callable[[str], None] | None = None) -> AnswerBundle:
+    """on_stage(name) is called as each stage starts: plan, triage, analysis, dq, narrate, check. It can never break a run."""
     t_start = time.perf_counter()
     r = _Run(persona)
+
+    def stage(name: str) -> None:
+        if on_stage is not None:
+            try:
+                on_stage(name)
+            except Exception:
+                pass
+
     bundle = AnswerBundle(run_id=uuid.uuid4().hex[:12], question=question, persona=persona, status="error")
     try:
         load_access().persona(persona)
@@ -357,6 +367,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         bundle.as_of = as_of
 
         t = time.perf_counter()
+        stage("plan")
         if plan is None:
             try:
                 plan, u = planner.plan(question, persona, as_of=as_of, data_start=data_start)
@@ -366,6 +377,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
                 return bundle
         t = r.tick("plan", t)
 
+        stage("triage")
         tri = triage.triage(plan, persona)
         bundle.plan = tri.plan
         t = r.tick("triage", t)
@@ -385,6 +397,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         bundle.plan, bundle.route = plan, plan.route
 
         filters = plan.filters
+        stage("analysis")
         if plan.route == "sql":
             _sql_route_evidence(r, plan)
         else:
@@ -414,15 +427,18 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None) -> 
         t = r.tick("analysis", t)
 
         if plan.route == "sql" or (plan.metric and load_catalog().metric(plan.metric).table == "transactions") or plan.intent in ("data_quality", "reconcile"):
+            stage("dq")
             bundle.dq = _dq_evidence(r, plan, filters, as_of)
         t = r.tick("dq", t)
 
+        stage("narrate")
         try:
             narr, u = narrate.narrate(question, plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = u
         except llm.LLMUnavailable:
             narr = narrate.template_narrative(plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = {"backend": "template"}
+        stage("check")
         bundle.headline, bundle.claims = narrate.check_claims(narr, r.evidence)
         t = r.tick("narrate", t)
 
