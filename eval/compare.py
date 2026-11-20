@@ -117,12 +117,15 @@ _NOT_DATA = re.compile(
     rf"|\b\d{{1,2}}:\d{{2}}\b"                                         # clock times
     rf"|\b\d{{1,2}}(?:st|nd|rd|th)?[ -]+(?:{_MONTHS})[a-z]*\.?(?:,? \d{{4}})?"   # 19 Nov 2026
     rf"|\b(?:{_MONTHS})[a-z]*\.? \d{{1,2}}(?:st|nd|rd|th)?\b(?:,? \d{{4}})?"     # Nov 19, 2026
+    rf"|\b(?:0?[1-9]|1[0-2])-(?:0?[1-9]|[12]\d|3[01])\b"              # 11-19 (month-day)
     rf"|\b(?:19|20)\d{{2}}\b"                                          # years
     rf"|\b[A-Z]+_?\d+\b"                                               # ids: PG_A2, M01362
     rf"|\bE\d+\.\w+",                                                  # placeholders
     re.IGNORECASE)
-_NUM = re.compile(r"(?<![\w.])[-+−]?(?:₹\s?)?(\d{1,3}(?:,\d{2,3})+|\d+)(?:\.(\d+))?\s*(%|pp|percentage points?|cr(?:ore)?|l(?:akh)?|k|m(?:n|illion)?|bn)?(?![\w])",
+_UNIT = r"%|pp|percentage points?|cr(?:ore)?|l(?:akh)?|k|m(?:n|illion)?|bn"
+_NUM = re.compile(rf"(?<![\w.])[-+−]?(?:₹\s?)?(\d{{1,3}}(?:,\d{{2,3}})+|\d+)(?:\.(\d+))?\s*({_UNIT})?(?![\w])",
                   re.IGNORECASE)
+_RANGE = re.compile(rf"(\d[\d,]*(?:\.\d+)?)(\s*(?:–|-|to)\s*)(₹?\s?\d[\d,]*(?:\.\d+)?)\s*({_UNIT})(?![\w])", re.IGNORECASE)
 _MULT = {"cr": 1e7, "crore": 1e7, "l": 1e5, "lakh": 1e5, "k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "bn": 1e9}
 
 
@@ -131,7 +134,8 @@ def numerals(text: str) -> list[tuple[str, list[tuple[float, float]]]]:
     A reading is what the numeral may mean as a raw value; the tolerance is half a unit of its last written
     digit in that reading's scale ("0.9%" -> (0.009, 0.0005) and (0.9, 0.05))."""
     out = []
-    for m in _NUM.finditer(_NOT_DATA.sub(" ", text)):
+    text = _RANGE.sub(r"\1\4\2\3\4", _NOT_DATA.sub(" ", text))    # "23–27K" -> "23K–27K": the unit is shared
+    for m in _NUM.finditer(text):
         x = float(m.group(1).replace(",", "") + (f".{m.group(2)}" if m.group(2) else ""))
         half = 0.5 * 10 ** -len(m.group(2) or "")
         unit = (m.group(3) or "").lower()

@@ -146,4 +146,9 @@ def grade_baseline(case: Case, out: dict, gold: pd.DataFrame | None = None) -> t
 
 
 def baseline_unsupported(case: Case, out: dict) -> list[str]:
-    return unsupported_numbers(out["text"], [v for row in out["rows"] for v in row], allowed_text=case["question"])
+    """Numerals in its summary not backed by its own result set (row count included). A failed query has no
+    summary: its text is our error message, not model prose."""
+    if out["error"]:
+        return []
+    return unsupported_numbers(out["text"], [v for row in out["rows"] for v in row] + [len(out["rows"])],
+                               allowed_text=case["question"])

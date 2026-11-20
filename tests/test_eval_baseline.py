@@ -47,6 +47,7 @@ def test_guard_rejection_is_not_a_decline(monkeypatch):
     assert len(calls) == 2 and out["error"].startswith("policy")      # first try + one repair, no summary
     ok, detail = bl.grade_baseline(refusal, out)
     assert not ok and "guard stopped" in detail
+    assert bl.baseline_unsupported(refusal, out) == []        # our error text is not the model's prose
     stub(monkeypatch, "")                                    # no SQL at all = declined
     assert bl.grade_baseline(refusal, bl.run_baseline(refusal, as_of="2026-11-19"))[0]
 

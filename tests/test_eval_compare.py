@@ -64,3 +64,9 @@ def test_numbers_match_at_their_written_precision():
     # 0.0087 renders as "0.9%" and -0.00673 as "-0.67 pp": correct roundings, fewer than 3 significant digits
     assert unsupported_numbers("TD was 0.9%; SR fell -0.67 pp", [0.0087, -0.00673]) == []
     assert unsupported_numbers("TD was 1.2%", [0.0087]) == ["1.2%"]
+
+
+def test_ranges_share_their_unit_and_month_day_dates_are_skipped():
+    assert [w for w, _ in numerals("volume 23–27K per day, TD 0.67–0.76%, data ends 11-19")] == \
+        ["23K", "27K", "0.67%", "0.76%"]
+    assert unsupported_numbers("about 23–27K a day", [23_419, 26_800]) == []
