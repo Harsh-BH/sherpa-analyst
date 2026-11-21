@@ -10,6 +10,13 @@ export type ExploreForm = S["ExploreForm"];
 export type ExplorePlan = S["ExplorePlan"];
 export type EvalResponse = S["EvalOk"] | S["EvalMissing"] | S["EvalError"];
 export type RunsResponse = S["RunsOk"] | S["RunsUnavailable"];
+/** GET /api/overview?persona=<key>: `available: false` (with a reason) means hide the panel. */
+export type OverviewResponse = S["OverviewOk"] | S["OverviewUnavailable"];
+export type Kpi = S["Kpi"];
+/** A dashboard chart: draw `spec` with VegaChart, use `summary` as its aria-label. */
+export type ChartView = S["ChartView"];
+/** A trace stage: `fraction` is its share of the total, a bar width only (null without a total). */
+export type StageTime = S["StageTime"];
 /** `elapsed` is `t_ms` formatted by the API (fmt_ms): the trace shows it as-is. */
 export type Stage = { name: string; t_ms: number; elapsed: string };
 

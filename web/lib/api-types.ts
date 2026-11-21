@@ -106,6 +106,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Overview
+         * @description Home: last 30 days vs the 30 before, governed queries as the persona. Never fails: unavailable says why.
+         */
+        get: operations["overview_api_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -275,6 +295,22 @@ export interface components {
             windows: components["schemas"]["Option"][];
             /** Grains */
             grains: string[];
+        };
+        /**
+         * ChartView
+         * @description A dashboard chart: `summary` is its text alternative (aria-label), `key` a stable id for the page.
+         */
+        ChartView: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
         };
         /** CheckedClaim */
         CheckedClaim: {
@@ -517,6 +553,8 @@ export interface components {
             tiles: components["schemas"]["EvalTile"][];
             /** Cases */
             cases: components["schemas"]["EvalCase"][];
+            /** Charts */
+            charts: components["schemas"]["ChartView"][];
         };
         /** EvalTile */
         EvalTile: {
@@ -670,7 +708,7 @@ export interface components {
             /** Items */
             items: components["schemas"]["KV"][];
             /** Stages */
-            stages: components["schemas"]["KV"][];
+            stages: components["schemas"]["StageTime"][];
             /** Summary */
             summary: string;
         };
@@ -710,6 +748,33 @@ export interface components {
             /** Summary */
             summary: string;
         };
+        /** Kpi */
+        Kpi: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+            /** Delta */
+            delta: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "up" | "down" | "flat";
+            /**
+             * Tone
+             * @enum {string}
+             */
+            tone: "positive" | "negative" | "neutral";
+            /** Summary */
+            summary: string;
+            /** Spark */
+            spark: {
+                [key: string]: unknown;
+            };
+        };
         /** Meta */
         Meta: {
             /** Personas */
@@ -745,6 +810,37 @@ export interface components {
             value: string;
             /** Label */
             label: string;
+        };
+        /** OverviewOk */
+        OverviewOk: {
+            /**
+             * Available
+             * @default true
+             * @constant
+             */
+            available: true;
+            /** Persona */
+            persona: string;
+            /** As Of */
+            as_of: string;
+            /** Window */
+            window: string;
+            /** Baseline */
+            baseline: string;
+            /** Kpis */
+            kpis: components["schemas"]["Kpi"][];
+            trend: components["schemas"]["ChartView"];
+        };
+        /** OverviewUnavailable */
+        OverviewUnavailable: {
+            /**
+             * Available
+             * @default false
+             * @constant
+             */
+            available: false;
+            /** Reason */
+            reason: string;
         };
         /** PersonaInfo */
         PersonaInfo: {
@@ -838,6 +934,8 @@ export interface components {
             tiles: components["schemas"]["KV"][];
             /** Recent */
             recent: components["schemas"]["RunRow"][];
+            /** Charts */
+            charts: components["schemas"]["ChartView"][];
         };
         /** RunsUnavailable */
         RunsUnavailable: {
@@ -890,6 +988,15 @@ export interface components {
             significant: boolean;
             /** Material */
             material: boolean;
+        };
+        /** StageTime */
+        StageTime: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+            /** Fraction */
+            fraction: number | null;
         };
         /** Table */
         Table: {
@@ -1092,6 +1199,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RunsOk"] | components["schemas"]["RunsUnavailable"];
                 };
+            };
+        };
+    };
+    overview_api_overview_get: {
+        parameters: {
+            query?: {
+                persona?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewOk"] | components["schemas"]["OverviewUnavailable"];
+                };
+            };
+            /** @description Unknown persona */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
