@@ -7,6 +7,7 @@ import { Claims } from "@/components/answer/claims";
 import { Drivers } from "@/components/answer/drivers";
 import { KeyChart } from "@/components/answer/key-chart";
 import { Recon } from "@/components/answer/recon";
+import { Clarification, ErrorCard, RefusalCard } from "@/components/answer/states";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnswerBundle, View } from "@/lib/api";
@@ -143,18 +144,16 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
   );
 }
 
-/** Clarification, refusal and error bundles until their full cards exist: the one sentence that matters and the run id. */
-export function StatusFallback({ bundle }: { bundle: AnswerBundle }) {
-  const text =
-    bundle.status === "clarify"
-      ? (bundle.clarification?.question ?? "Sherpa needs a clarification.")
-      : bundle.status === "refused"
-        ? (bundle.refusal?.reason ?? "This request was refused.")
-        : (bundle.error ?? "No error message was recorded.");
-  return (
-    <div data-testid="status-fallback" className="grid gap-1 rounded-lg border bg-card px-4 py-3 text-sm">
-      <p className="wrap-anywhere">{text}</p>
-      <p className="font-mono text-xs text-muted-foreground wrap-anywhere">run {bundle.run_id}</p>
-    </div>
-  );
+/** One bundle, by status: the answer, a clarification, a refusal or an error. */
+export function BundleView({ bundle, view }: { bundle: AnswerBundle; view: View }) {
+  switch (bundle.status) {
+    case "error":
+      return <ErrorCard bundle={bundle} />;
+    case "clarify":
+      return <Clarification bundle={bundle} />;
+    case "refused":
+      return <RefusalCard bundle={bundle} />;
+    default:
+      return <AnswerView bundle={bundle} view={view} />;
+  }
 }

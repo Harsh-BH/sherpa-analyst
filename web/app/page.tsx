@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { Chips } from "@/components/ask/chips";
 import { QuestionBar } from "@/components/ask/question-bar";
-import { AnswerView, Banner, StatusFallback } from "@/components/answer/answer-view";
+import { Banner, BundleView } from "@/components/answer/answer-view";
 import { Trace } from "@/components/answer/trace";
 import { AnswerRail } from "@/components/rail/answer-rail";
 import { Workspace } from "@/components/shell/workspace";
@@ -49,12 +49,7 @@ function Center() {
             {run.question && <p className="mt-1 text-muted-foreground">Question: {run.question}</p>}
           </Banner>
         )}
-        {result &&
-          (result.bundle.status === "answered" ? (
-            <AnswerView bundle={result.bundle} view={result.view} />
-          ) : (
-            <StatusFallback bundle={result.bundle} />
-          ))}
+        {result && <BundleView bundle={result.bundle} view={result.view} />}
       </div>
     </>
   );

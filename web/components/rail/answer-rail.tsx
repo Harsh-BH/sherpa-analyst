@@ -18,7 +18,7 @@ const caption = "text-xs font-medium text-muted-foreground";
 const empty = "px-4 py-3 text-[13px] text-muted-foreground";
 
 /** The plan's fields that are set, as label and value pairs. Every value is the plan's own text. */
-function planItems(p: Plan) {
+export function planItems(p: Plan) {
   const when = (w: Plan["window"]) => w && (w.label || w.preset || [w.start, w.end].filter(Boolean).join(" to "));
   const rows: [string, string | null | undefined][] = [
     ["Question", p.question],
