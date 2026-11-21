@@ -28,7 +28,10 @@ type Sherpa = {
   run: Run;
   ask(question: string, opts?: AskOptions): Promise<void>;
   selectedEvidenceId: string | null;
+  /** Selecting evidence also opens the rail's Evidence tab, even when that id was already selected. */
   selectEvidence(id: string | null): void;
+  railTab: string;
+  setRailTab(tab: string): void;
   /** The rail as a sheet below 1280 px: an evidence chip asks for it to open. */
   railOpen: boolean;
   setRailOpen(open: boolean): void;
@@ -58,7 +61,8 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
   const [persona, setPersonaState] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [run, setRun] = useState<Run>({ status: "idle", stages: [] });
-  const [selectedEvidenceId, selectEvidence] = useState<string | null>(null);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
+  const [railTab, setRailTab] = useState("evidence");
   const [railOpen, setRailOpen] = useState(false);
   const runCounter = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -81,6 +85,11 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
     loadMeta().catch(() => {}); // shown through metaError; the next ask retries
     return () => controller.current?.abort();
   }, [loadMeta]);
+
+  const selectEvidence = useCallback((id: string | null) => {
+    setSelectedEvidenceId(id);
+    if (id) setRailTab("evidence");
+  }, []);
 
   const setPersona = useCallback((key: string) => {
     setPersonaState(key);
@@ -119,7 +128,7 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
         if (live()) setRun((r) => ({ ...r, status: "failed", error: e instanceof Error ? e.message : String(e) }));
       }
     },
-    [persona, loadMeta],
+    [persona, loadMeta, selectEvidence],
   );
 
   const value = useMemo(
@@ -134,10 +143,12 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
       ask,
       selectedEvidenceId,
       selectEvidence,
+      railTab,
+      setRailTab,
       railOpen,
       setRailOpen,
     }),
-    [meta, metaError, persona, setPersona, draft, run, ask, selectedEvidenceId, railOpen],
+    [meta, metaError, persona, setPersona, draft, run, ask, selectedEvidenceId, selectEvidence, railTab, railOpen],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -7,6 +7,7 @@ import { Chips } from "@/components/ask/chips";
 import { QuestionBar } from "@/components/ask/question-bar";
 import { AnswerView, Banner, StatusFallback } from "@/components/answer/answer-view";
 import { Trace } from "@/components/answer/trace";
+import { AnswerRail } from "@/components/rail/answer-rail";
 import { Workspace } from "@/components/shell/workspace";
 import { useSherpa } from "@/lib/store";
 
@@ -60,7 +61,8 @@ function Center() {
 }
 
 export default function AskPage() {
-  const { railOpen, setRailOpen } = useSherpa();
+  const { run, railOpen, setRailOpen } = useSherpa();
+  const result = run.status === "done" ? run.result : undefined;
   return (
     <>
       <Suspense fallback={null}>
@@ -71,7 +73,13 @@ export default function AskPage() {
         railOpen={railOpen}
         onRailOpenChange={setRailOpen}
         center={<Center />}
-        rail={<p className="p-4 text-sm text-muted-foreground">The plan, evidence and footprints of an answer show here.</p>}
+        rail={
+          result ? (
+            <AnswerRail bundle={result.bundle} view={result.view} />
+          ) : (
+            <p className="p-4 text-sm text-muted-foreground">The plan, evidence and footprints of an answer show here.</p>
+          )
+        }
       />
     </>
   );

@@ -13,7 +13,7 @@ const STAGE_LABELS: Record<string, string> = {
   narrate: "Narration",
   check: "Claim check",
 };
-const label = (name: string) => STAGE_LABELS[name] ?? name;
+export const stageLabel = (name: string) => STAGE_LABELS[name] ?? name;
 
 /** The pipeline's stages as they stream in, each with the API's formatted elapsed time, then one line from the
  * bundle's footprint. The browser never formats a number. */
@@ -44,7 +44,7 @@ export function Trace({ run }: { run: Run }) {
               <ul className="grid gap-1 border-t px-3 py-2">
                 {stages.map((s) => (
                   <li key={s.label} className="flex justify-between gap-3">
-                    <span>{label(s.label)}</span>
+                    <span>{stageLabel(s.label)}</span>
                     <span className="font-mono text-xs text-muted-foreground">{s.value}</span>
                   </li>
                 ))}
@@ -76,7 +76,7 @@ export function Trace({ run }: { run: Run }) {
               ) : (
                 <CircleCheck className="size-4 text-muted-foreground" />
               )}
-              {label(s.name)}
+              {stageLabel(s.name)}
               <span className="ml-auto font-mono text-xs text-muted-foreground">{s.elapsed}</span>
             </li>
           );

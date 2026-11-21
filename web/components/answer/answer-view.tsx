@@ -4,6 +4,9 @@ import type { ComponentProps } from "react";
 import { ChevronRight, CircleAlert, Download, Gauge, Info, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import { Claims } from "@/components/answer/claims";
+import { Drivers } from "@/components/answer/drivers";
+import { KeyChart } from "@/components/answer/key-chart";
+import { Recon } from "@/components/answer/recon";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnswerBundle, View } from "@/lib/api";
@@ -33,7 +36,8 @@ const CONFIDENCE = {
 };
 const pill = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] font-medium [&>svg]:size-3.5";
 
-function download(bundle: AnswerBundle) {
+/** Save the bundle as JSON; the file name keeps only safe characters of the run id. */
+export function download(bundle: AnswerBundle) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" }));
   const a = document.createElement("a");
   a.href = url;
@@ -122,6 +126,9 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
         </section>
       )}
       <Claims claims={view.claims} />
+      <KeyChart key={bundle.run_id} view={view} />
+      {view.drivers && <Drivers drivers={view.drivers} />}
+      {view.recon && <Recon recon={view.recon} />}
       <Button
         variant="outline"
         size="sm"
