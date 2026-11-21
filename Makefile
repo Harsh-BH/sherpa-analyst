@@ -2,7 +2,7 @@
 SEED ?= 42
 DB ?= sherpa
 
-.PHONY: up seed seed-eval test app eval down
+.PHONY: up seed seed-eval test app api eval down
 
 up:
 	docker compose up -d db
@@ -12,7 +12,10 @@ seed:
 	uv run python -m db.roles --db $(DB)
 
 # second seed for the eval, in its own database (created and schema'd if missing)
-seed-eval:
+seed-api:
+	uv run uvicorn app.api:app --host 127.0.0.1 --port 8000 --reload
+
+eval:
 	uv run python -m gen.generate --seed 7 --db sherpa_s7 --create
 	uv run python -m db.roles --db sherpa_s7
 

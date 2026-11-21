@@ -354,8 +354,18 @@ EVAL = {
     ],
 }
 
+def partial() -> AnswerBundle:
+    """explain_change with the gaps a real pipeline can leave: an unformatted value, a dangling and a duplicate evidence id."""
+    b = explain_change()
+    b.evidence[0].values["note"] = "free text, no format"
+    b.claims[0].evidence_ids = ["E1", "E1", "E9"]
+    b.llm_usage = {"backend": "template", "cost_usd": None}
+    b.run_id = "fx-partial-0001"
+    return b
+
+
 BUNDLES = {"explain_change": explain_change, "clarify": clarify, "refused": refused, "sql_route": sql_route,
-           "reconcile": reconcile, "error": error}
+           "reconcile": reconcile, "error": error, "partial": partial}
 
 
 def build() -> dict[str, AnswerBundle]:
