@@ -176,9 +176,9 @@ def test_runs_ok(monkeypatch):
 def test_partial_fixture_view():
     b = sse(ask(fixture="partial"))[0][1]
 
-    def no_float(x):   # chart specs ("chart", "spec") are plot data for vega, not displayed text
+    def no_float(x):   # chart specs ("chart", "spec") are plot data for vega, a fraction is a bar width: not text
         if isinstance(x, dict):
-            return all(no_float(v) for k, v in x.items() if k not in ("chart", "spec"))
+            return all(no_float(v) for k, v in x.items() if k not in ("chart", "spec", "fraction"))
         if isinstance(x, list):
             return all(no_float(v) for v in x)
         return not isinstance(x, float)

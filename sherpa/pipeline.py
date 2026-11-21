@@ -479,9 +479,10 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
         except llm.LLMUnavailable:
             narr = narrate.template_narrative(plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = {"backend": "template"}
+        t = r.tick("narrate", t)
         stage("check")
         bundle.headline, bundle.claims = narrate.check_claims(narr, r.evidence)
-        t = r.tick("narrate", t)
+        t = r.tick("check", t)
 
         bundle.confidence, bundle.confidence_reasons = narrate.confidence(
             plan, plan.route, r.evidence, bundle.claims, bundle.dq, bundle.drivers,

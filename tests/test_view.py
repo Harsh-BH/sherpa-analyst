@@ -44,7 +44,7 @@ def test_every_number_is_a_string():
     for name in FIXTURES:
         for key, v in _leaves(build_view(backend.load_fixture(name)).model_dump()):
             if isinstance(v, int | float) and not isinstance(v, bool):
-                assert key in ("n", "cited_by"), (name, key, v)
+                assert key in ("n", "cited_by", "fraction"), (name, key, v)   # fraction: a bar width, not shown
 
 
 def test_key_charts_and_simpson():
@@ -68,9 +68,16 @@ def test_footprint():
     b.llm_usage = {"backend": "claude-cli", "cost_usd": 0.02451}
     f = build_view(b).footprint
     assert f.summary == "2 steps · 14.8 s · $0.0245"
+    assert [(s.label, s.value, s.fraction) for s in f.stages] == [("plan", "6.1 s", 6127 / 14827),
+                                                                  ("narrate", "8.2 s", 8182 / 14827)]
     assert ("Cache", "20 of 20 queries") in [(i.label, i.value) for i in f.items]
     b.llm_usage = {"backend": "claude-cli", "cost_usd": None}
     assert "$" not in build_view(b).footprint.summary
+    b.timings_ms = {s: 100 for s in ("plan", "triage", "analysis", "dq", "narrate", "check")} | {"total": 600}
+    f = build_view(b).footprint   # the steps counted are the stages listed, all six the stream shows
+    assert len(f.stages) == 6 and f.summary.startswith("6 steps") and abs(sum(s.fraction for s in f.stages) - 1) < 1e-9
+    b.timings_ms = {"plan": 5}    # no total: no bar to scale against
+    assert build_view(b).footprint.stages[0].fraction is None
 
 
 def test_fmt_ms():

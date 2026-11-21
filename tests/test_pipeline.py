@@ -137,10 +137,16 @@ def test_denominator_ambiguity_asks_with_previews():
 
 
 def test_runs_are_logged():
-    from sherpa import runs
+    """Every answer is logged; one asked from pytest is labelled source='test', so the Runs page never shows it."""
+    import psycopg
+
+    from sherpa.config import settings
     b = pipeline.answer("SR", "head", plan=_plan(intent="metric_value", metric="success_rate",
                         window=TimeWindow(preset="yesterday")))
-    assert any(r["run_id"] == b.run_id for r in runs.recent_runs(20))
+    with psycopg.connect(settings().admin_dsn()) as conn:
+        row = conn.execute("SELECT source, timings_ms FROM app.runs WHERE run_id = %s", (b.run_id,)).fetchone()
+    assert row[0] == "test"
+    assert {"plan", "triage", "analysis", "dq", "narrate", "check"} <= row[1].keys()   # one timing per streamed stage
 
 
 def test_denominator_not_asked_when_both_readings_agree(truth):
