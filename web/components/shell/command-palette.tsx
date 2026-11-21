@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useSherpa } from "@/lib/store";
 
-/** One entry of the palette's Recent group. Integration fills it from /api/history (track A). */
+/** One entry of the palette's Recent group: the persona's last 8 runs from /api/history, as the sidebar lists them. */
 export type RecentItem = { label: string; onSelect(): void };
 
 type Item = { key: string; group: string; label: string; hint?: string; icon: LucideIcon; run(): void; keep?: boolean };
@@ -40,6 +40,8 @@ const typing = (t: EventTarget | null) =>
  * when nothing is being typed and no dialog or sheet is open. */
 export function PaletteProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const { history, openRun } = useSherpa();
+  const recent = history.slice(0, 8).map((h) => ({ label: h.question, onSelect: () => void openRun(h.run_id) }));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
@@ -60,8 +62,7 @@ export function PaletteProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={setOpen}>
       {children}
-      {/* integration: pass recent={…} built from /api/history */}
-      <CommandPalette open={open} onOpenChange={setOpen} />
+      <CommandPalette open={open} onOpenChange={setOpen} recent={recent} />
     </Ctx.Provider>
   );
 }
