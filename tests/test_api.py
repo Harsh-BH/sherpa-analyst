@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app import backend
 from app.api import app
+from app.view import fmt_ms
 
 client = TestClient(app)
 
@@ -64,6 +65,7 @@ def test_ask_streams_stages_from_pipeline(monkeypatch):
     assert [d["name"] for n, d in events[:6]] == stages
     t = [d["t_ms"] for n, d in events[:6]]
     assert t == sorted(t)
+    assert [d["elapsed"] for n, d in events[:6]] == [fmt_ms(ms) for ms in t]  # the trace shows it as-is
 
 
 def test_ask_sets_streaming_headers():

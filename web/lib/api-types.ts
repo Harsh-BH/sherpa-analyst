@@ -1001,7 +1001,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SSE: `stage` events {name, t_ms} as stages start, then one `result` event whose data is AskResult. */
+            /** @description SSE: `stage` events {name, t_ms, elapsed} as stages start, then one `result` event whose data is AskResult. */
             200: {
                 headers: {
                     [name: string]: unknown;

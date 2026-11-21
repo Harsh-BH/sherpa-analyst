@@ -15,8 +15,8 @@ const STAGE_LABELS: Record<string, string> = {
 };
 const label = (name: string) => STAGE_LABELS[name] ?? name;
 
-/** The pipeline's stages as they stream in, then one line from the bundle's footprint.
- * Shows no live timings: the browser never formats a number; per-stage times come from view.footprint.stages. */
+/** The pipeline's stages as they stream in, each with the API's formatted elapsed time, then one line from the
+ * bundle's footprint. The browser never formats a number. */
 export function Trace({ run }: { run: Run }) {
   const times = [...run.stages.map((s) => [s.name, s.at]), ...(run.resultAt === undefined ? [] : [["result", run.resultAt]])];
   const box = "rounded-lg border bg-card text-[13px]";
@@ -77,6 +77,7 @@ export function Trace({ run }: { run: Run }) {
                 <CircleCheck className="size-4 text-muted-foreground" />
               )}
               {label(s.name)}
+              <span className="ml-auto font-mono text-xs text-muted-foreground">{s.elapsed}</span>
             </li>
           );
         })}

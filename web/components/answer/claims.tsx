@@ -6,12 +6,12 @@ import { useSherpa } from "@/lib/store";
 
 type Kind = View["claims"][number]["kind"];
 
-// The tag text carries the kind; the mark is a second cue, never colour alone (hue only on caveats, a DQ-like signal).
+// The tag text carries the kind; the mark's shape is a second cue. All grey: the hue rule keeps hue for DQ and confidence.
 const KINDS: Record<Kind, { tag: string; mark: string }> = {
   fact: { tag: "Fact", mark: "rounded-[2px] bg-foreground" },
   hypothesis: { tag: "Hypothesis", mark: "rounded-[2px] border-[1.5px] border-dashed border-foreground" },
   recommendation: { tag: "Recommendation", mark: "rounded-full border-[1.5px] border-foreground" },
-  caveat: { tag: "Caveat", mark: "rotate-45 bg-warning" },
+  caveat: { tag: "Caveat", mark: "rotate-45 bg-foreground" },
 };
 
 /** An evidence id that selects that entry in the rail (and opens the rail sheet on narrow screens). */
@@ -66,7 +66,7 @@ export function Claims({ claims }: { claims: View["claims"] }) {
               <div className="grid min-w-0 gap-1.5">
                 <p className="text-sm wrap-anywhere">{c.text}</p>
                 {!c.ok && (
-                  <p className="text-xs text-warning wrap-anywhere">
+                  <p className="text-xs text-muted-foreground wrap-anywhere">
                     Claim checker: {c.problems.join("; ") || "failed"}
                   </p>
                 )}

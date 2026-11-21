@@ -66,6 +66,7 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
             {conf.label} confidence
           </span>
         )}
+        {/* Hue is allowed here: the sql route caps confidence at medium, so it is a confidence signal (spec, hue rule). */}
         {bundle.route === "sql" && (
           <span data-testid="badge-route" className={cn(pill, "bg-warning/12 text-warning")}>
             <TriangleAlert />

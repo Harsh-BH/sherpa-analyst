@@ -10,7 +10,8 @@ export type ExploreForm = S["ExploreForm"];
 export type ExplorePlan = S["ExplorePlan"];
 export type EvalResponse = S["EvalOk"] | S["EvalMissing"] | S["EvalError"];
 export type RunsResponse = S["RunsOk"] | S["RunsUnavailable"];
-export type Stage = { name: string; t_ms: number };
+/** `elapsed` is `t_ms` formatted by the API (fmt_ms): the trace shows it as-is. */
+export type Stage = { name: string; t_ms: number; elapsed: string };
 
 /** fetch, with every network failure and non-2xx turned into one message the UI can show. */
 async function request(path: string, init?: RequestInit): Promise<Response> {

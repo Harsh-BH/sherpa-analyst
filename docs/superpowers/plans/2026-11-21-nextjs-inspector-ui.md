@@ -23,7 +23,7 @@
 - **The front end never computes or formats a number.** Every displayed number is a string from Python: a claim's `rendered`, a `View` field, or an `/api/eval` or `/api/runs` field.
 - No `dangerouslySetInnerHTML`, no `eval`, and no `href` or `src` built from data. Data-derived text is rendered only as React text nodes.
 - Data-quality banners always render above the headline and are never collapsed.
-- **Chrome hue rule:** hue appears only for data quality and confidence; the rest is grey. Charts are recoloured through `web/lib/chart-colors.json`.
+- **Chrome hue rule:** hue appears only for data quality and confidence; the rest is grey. "Unverified SQL" counts as confidence (the sql route caps it at medium). Charts are recoloured through `web/lib/chart-colors.json`.
 - **Tokens:** light bg `#F6F6F7`, surface `#FFFFFF`, text `#111214`, muted `#5A5E66`, border `#E1E2E5`, accent `#2456C4`, positive `#167A3C`, negative `#C22F2A`, warning `#8C5800`. Dark bg `#0A0B0D`, surface `#131417`, text `#EDEEF0`, muted `#9A9EA7`, border `#25272C`, accent `#7FA8FF`, positive `#5ED18E`, negative `#FF7B74`, warning `#F0BF4F`. Input outlines use a border step of at least 3:1 (light `#8C8F95`, dark `#5E626A`). Fonts: Geist and Geist Mono through `next/font/google`, with `tabular-nums` on figures.
 - **Dependencies:** pnpm only; pin exact versions; no dependency beyond those named in the spec and this plan.
 - Do not build Docker images (repo `CLAUDE.md`). Never run `docker compose down -v` or prune volumes.
@@ -171,7 +171,7 @@ def fmt_ms(ms: int | float | None) -> str    # None -> "n/a"; <100 -> "20 ms"; e
     - `fixture` is honoured only in fixture mode, and must name an existing `tests/fixtures/*.json` bundle, else 422.
     - When `patch` is set, `plan = backend.patched(plan, patch)`; it is a 422 if `plan` is None.
     - Response: `text/event-stream` with headers `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. Events:
-      - `event: stage` with `data: {"name": str, "t_ms": int}`, where `t_ms` is milliseconds since the request started;
+      - `event: stage` with `data: {"name": str, "t_ms": int, "elapsed": str}`, where `t_ms` is milliseconds since the request started and `elapsed` is `fmt_ms(t_ms)`;
       - one final `event: result` with `data: {"bundle": AnswerBundle, "view": View}`.
     - The pipeline runs in a `threading.Thread`; `on_stage` puts onto a `queue.Queue` that the generator drains. An unexpected exception becomes an error bundle with a run id, as `backend.answer` does.
   - `POST /api/explore/plan` takes `ExploreForm {intent, metric, dimensions: list[str] = [], window: str = "last_7_days", baseline: str | None, grain: Literal["day","hour"] = "day", filters: list[Filter] = []}` and returns `{question: str, plan: AnalysisPlan}`. Unknown metric, dimension, intent or preset gets a 422.

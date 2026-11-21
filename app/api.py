@@ -234,7 +234,8 @@ def _sse(event: str, data: str) -> str:
 def _run(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None, q: queue.Queue, t0: float) -> None:
     """The pipeline thread: stages and then the bundle go onto q."""
     def on_stage(name: str) -> None:
-        q.put(("stage", {"name": name, "t_ms": round((time.perf_counter() - t0) * 1000)}))
+        t_ms = round((time.perf_counter() - t0) * 1000)
+        q.put(("stage", {"name": name, "t_ms": t_ms, "elapsed": fmt_ms(t_ms)}))
     try:
         bundle = backend.load_fixture(fixture) if fixture else backend.answer(req.question, req.persona, plan, on_stage)
     except Exception as e:  # noqa: BLE001 - keep a run id, as backend.answer does
@@ -257,7 +258,7 @@ def _stream(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None) -> 
 
 @app.post("/api/ask", response_class=StreamingResponse, responses={200: {
     "model": AskResult, "content": {"text/event-stream": {}},
-    "description": "SSE: `stage` events {name, t_ms} as stages start, then one `result` event whose data is AskResult."}})
+    "description": "SSE: `stage` events {name, t_ms, elapsed} as stages start, then one `result` event whose data is AskResult."}})
 def ask(req: AskRequest) -> StreamingResponse:
     plan = req.plan
     if req.patch is not None:

@@ -63,7 +63,7 @@ assumption is a product-grade first impression for the Pine Labs reviewers and t
 - **The front end computes or formats a number.** Every displayed number is a string produced in Python: either a claim's `rendered` text or the API's `view` payload, which uses `format_value`. A second formatter in TypeScript would let the screen disagree with the bundle.
 - **Data-derived text is ever rendered as HTML.** No `dangerouslySetInnerHTML`, and no URLs built from data. React text nodes only. This is the guarantee `tests/test_app.py::assert_inert` holds today.
 - **A data-quality warning is hidden behind a click.**
-- **The UI looks like a template.** In the UI chrome, hue appears only for data quality and confidence; everything else is grey. Charts follow the chart rule in Design → Charts.
+- **The UI looks like a template.** In the UI chrome, hue appears only for data quality and confidence; everything else is grey. The "Unverified SQL" badge and warning count as confidence: that route caps confidence at medium. "Governed metric" and the claim-kind marks are grey. Charts follow the chart rule in Design → Charts.
 
 ## Constraints
 
@@ -114,7 +114,7 @@ tests/test_backend.py  new: the backend unit tests moved out of test_app.py
 |---|---|---|
 | `GET /api/health` | | `{ok, fixture_mode, fixture_reason}` |
 | `GET /api/meta` | | Personas (key, label, regions). Demo questions with an optional persona override, and verified questions. Catalog for Explore: metrics (name, label, table, format), dimensions (name, label, tables, values), intents, window presets. Configured LLM backend. |
-| `POST /api/ask` | `{question (1–500 chars), persona (must exist), plan?: AnalysisPlan, patch?: object}`. When `patch` is present, the server applies `backend.patched(plan, patch)`. | `text/event-stream`: one `event: stage` per stage, `{name, t_ms}`, then `event: result` with `{bundle: AnswerBundle, view: View}`. The pipeline runs in a worker thread; `on_stage` pushes onto a queue the stream drains. In fixture mode, only `result` is sent. |
+| `POST /api/ask` | `{question (1–500 chars), persona (must exist), plan?: AnalysisPlan, patch?: object}`. When `patch` is present, the server applies `backend.patched(plan, patch)`. | `text/event-stream`: one `event: stage` per stage, `{name, t_ms, elapsed}` (`elapsed` is `fmt_ms(t_ms)`, shown as-is by the trace), then `event: result` with `{bundle: AnswerBundle, view: View}`. The pipeline runs in a worker thread; `on_stage` pushes onto a queue the stream drains. In fixture mode, only `result` is sent. |
 | `POST /api/explore/plan` | `{intent, metric, dimensions, window, baseline?, grain, filters[{dimension, values}]}` | `{question, plan}`, built exactly as `explore_page()` builds them today. Invalid input gets a 422. |
 | `GET /api/eval` | | `{data, fixture: bool}`, or `{missing: true, path}`, or `{error}`. Same fallbacks as `eval_page()`. |
 | `GET /api/runs` | | `{stats, recent}` (latest 50), or `{unavailable: reason}`. |

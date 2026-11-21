@@ -143,6 +143,26 @@ test("trace records when each stage and the result arrive", async ({ page }) => 
   expect(times.every(([, ms]) => Number.isInteger(ms) && ms >= 0)).toBe(true);
 });
 
+test("running trace shows each stage with the API's elapsed time", async ({ page }) => {
+  // An /api/ask stream that sends two stages and never ends, so the run stays in flight.
+  await page.addInitScript(() => {
+    const real = window.fetch;
+    window.fetch = (input, init) => {
+      if (String(input) !== "/api/ask") return real(input, init);
+      const sse =
+        'event: stage\ndata: {"name":"plan","t_ms":12,"elapsed":"12 ms"}\n\n' +
+        'event: stage\ndata: {"name":"triage","t_ms":2340,"elapsed":"2.3 s"}\n\n';
+      const body = new ReadableStream({ start: (c) => c.enqueue(new TextEncoder().encode(sse)) });
+      return Promise.resolve(new Response(body, { headers: { "content-type": "text/event-stream" } }));
+    };
+  });
+  await open(page);
+  await ask(page, EXPLAIN);
+  const trace = page.getByTestId("trace");
+  await expect(trace).toHaveAttribute("aria-busy", "true");
+  await expect(trace.getByRole("listitem")).toHaveText([/^Plan\s*12 ms$/, /^Triage\s*2\.3 s$/]);
+});
+
 test("second question wins", async ({ page }) => {
   let n = 0;
   await page.route("**/api/ask", async (route) => {
