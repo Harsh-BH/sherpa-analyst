@@ -126,6 +126,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Health
+         * @description The home rail's data health: the governed dq checks over the last 30 days, as the persona.
+         */
+        get: operations["data_health_api_data_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description The persona's own app runs that can be reopened, newest first.
+         */
+        get: operations["history_api_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description A saved run as the same AskResult /api/ask streams, its view rebuilt from the stored bundle.
+         */
+        get: operations["get_run_api_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Feedback
+         * @description Thumbs up (1) or down (-1). Insert-only: the latest rating wins when read.
+         */
+        post: operations["run_feedback_api_runs__run_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -282,6 +362,8 @@ export interface components {
         AskResult: {
             bundle: components["schemas"]["AnswerBundle"];
             view: components["schemas"]["View"];
+            /** Feedback */
+            feedback?: ("up" | "down") | null;
         };
         /** CatalogInfo */
         CatalogInfo: {
@@ -395,6 +477,47 @@ export interface components {
             values: {
                 [key: string]: number | string | null;
             };
+        };
+        /**
+         * DataHealth
+         * @description The rail's "Data health · last 30 days": the governed dq checks over the window, as the persona.
+         */
+        DataHealth: {
+            /**
+             * Available
+             * @default true
+             * @constant
+             */
+            available: true;
+            /** Persona */
+            persona: string;
+            /** Window */
+            window: string;
+            /** Issues */
+            issues: components["schemas"]["DataIssue"][];
+        };
+        /** DataIssue */
+        DataIssue: {
+            /** Check */
+            check: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warn" | "error";
+            /** When */
+            when: string;
+            /** Text */
+            text: string;
+            /** Question */
+            question: string;
+        };
+        /** DayAsk */
+        DayAsk: {
+            /** Label */
+            label: string;
+            /** Question */
+            question: string;
         };
         /** DemoItem */
         DemoItem: {
@@ -555,6 +678,8 @@ export interface components {
             cases: components["schemas"]["EvalCase"][];
             /** Charts */
             charts: components["schemas"]["ChartView"][];
+            /** Proof */
+            proof?: string | null;
         };
         /** EvalTile */
         EvalTile: {
@@ -690,6 +815,26 @@ export interface components {
             question: string;
             plan: components["schemas"]["AnalysisPlan"];
         };
+        /** FeedbackRequest */
+        FeedbackRequest: {
+            /** Persona */
+            persona: string;
+            /**
+             * Rating
+             * @enum {integer}
+             */
+            rating: -1 | 1;
+        };
+        /** FeedbackSaved */
+        FeedbackSaved: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Feedback
+             * @enum {string}
+             */
+            feedback: "up" | "down";
+        };
         /** Filter */
         Filter: {
             /** Dimension */
@@ -702,6 +847,14 @@ export interface components {
             op: "in" | "not_in";
             /** Values */
             values: string[];
+        };
+        /** FollowUp */
+        FollowUp: {
+            /** Label */
+            label: string;
+            /** Question */
+            question: string;
+            plan: components["schemas"]["AnalysisPlan"];
         };
         /** Footprint */
         Footprint: {
@@ -717,6 +870,21 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HeadlinePart */
+        HeadlinePart: {
+            /** Text */
+            text: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "value" | "up" | "down";
+            /**
+             * Tone
+             * @enum {string}
+             */
+            tone: "positive" | "negative" | "neutral";
+        };
         /** Health */
         Health: {
             /** Ok */
@@ -725,6 +893,22 @@ export interface components {
             fixture_mode: boolean;
             /** Fixture Reason */
             fixture_reason: string | null;
+        };
+        /**
+         * HistoryItem
+         * @description A run the persona can reopen with GET /api/runs/{run_id}.
+         */
+        HistoryItem: {
+            /** Run Id */
+            run_id: string;
+            /** Question */
+            question: string;
+            /** Status */
+            status: string;
+            /** Confidence */
+            confidence: string | null;
+            /** Asked At */
+            asked_at: string;
         };
         /** KV */
         KV: {
@@ -830,6 +1014,16 @@ export interface components {
             /** Kpis */
             kpis: components["schemas"]["Kpi"][];
             trend: components["schemas"]["ChartView"];
+            /**
+             * Unusual
+             * @default []
+             */
+            unusual: components["schemas"]["DayAsk"][];
+            /**
+             * Days
+             * @default []
+             */
+            days: components["schemas"]["DayAsk"][];
         };
         /** OverviewUnavailable */
         OverviewUnavailable: {
@@ -921,6 +1115,8 @@ export interface components {
             cost: string;
             /** Footprint */
             footprint: components["schemas"]["KV"][];
+            /** Feedback */
+            feedback?: ("up" | "down") | null;
         };
         /** RunsOk */
         RunsOk: {
@@ -1004,6 +1200,13 @@ export interface components {
             columns: string[];
             /** Rows */
             rows: string[][];
+            /**
+             * Key Columns
+             * @default []
+             */
+            key_columns: string[];
+            /** More Label */
+            more_label?: string | null;
         };
         /** TimeWindow */
         TimeWindow: {
@@ -1031,6 +1234,11 @@ export interface components {
         };
         /** View */
         View: {
+            /**
+             * Partial
+             * @default false
+             */
+            partial: boolean;
             /** Claims */
             claims: components["schemas"]["ClaimView"][];
             /** Evidence */
@@ -1045,6 +1253,21 @@ export interface components {
             footprint: components["schemas"]["Footprint"];
             /** As Of */
             as_of: string | null;
+            /**
+             * Follow Ups
+             * @default []
+             */
+            follow_ups: components["schemas"]["FollowUp"][];
+            /**
+             * Headline Parts
+             * @default []
+             */
+            headline_parts: components["schemas"]["HeadlinePart"][];
+            /**
+             * Markdown
+             * @default
+             */
+            markdown: string;
         };
     };
     responses: never;
@@ -1108,7 +1331,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SSE: `stage` events {name, t_ms, elapsed} as stages start, then one `result` event whose data is AskResult. */
+            /** @description SSE: `stage` events {name, t_ms, elapsed} as stages start; at most one `partial` event (an AskResult with view.partial=true: the numbers, no headline, claims or confidence, and bundle.status not final) after the dq stage; then one `result` event whose data is AskResult. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1228,6 +1451,147 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    data_health_api_data_health_get: {
+        parameters: {
+            query?: {
+                persona?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataHealth"] | components["schemas"]["OverviewUnavailable"];
+                };
+            };
+            /** @description Unknown persona */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    history_api_history_get: {
+        parameters: {
+            query: {
+                persona: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryItem"][];
+                };
+            };
+            /** @description Unknown persona */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_run_api_runs__run_id__get: {
+        parameters: {
+            query: {
+                persona: string;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskResult"];
+                };
+            };
+            /** @description No such run for this persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_feedback_api_runs__run_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackSaved"];
+                };
+            };
+            /** @description No such run for this persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

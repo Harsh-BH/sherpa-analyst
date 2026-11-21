@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, FlaskConical, History, MessageSquare, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
+import { RecentRuns } from "@/components/shell/recent-runs";
+import { PaletteHint } from "@/components/shell/command-palette";
+import { NAV } from "@/components/shell/nav";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -17,20 +20,15 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useSherpa } from "@/lib/store";
-
-const NAV = [
-  { href: "/", label: "Ask", icon: MessageSquare },
-  { href: "/explore", label: "Explore", icon: Compass },
-  { href: "/eval", label: "Eval", icon: FlaskConical },
-  { href: "/runs", label: "Runs", icon: History },
-];
 
 export function AppSidebar() {
   const { meta, metaError, persona, setPersona, run } = useSherpa();
   const pathname = usePathname();
   const bundle = run.result?.bundle;
+  const { isMobile, setOpenMobile } = useSidebar();
   const backend = bundle?.llm_usage.backend;
   // The latest run's own provenance wins; before any run, what the API reports now.
   const footer = [
@@ -67,7 +65,10 @@ export function AppSidebar() {
           </SelectContent>
         </Select>
       </SidebarHeader>
-      <SidebarContent>
+      {/* On phones the sidebar is a sheet: following a link or a menu button inside it closes it. */}
+      <SidebarContent
+        onClick={(e) => isMobile && (e.target as Element).closest("a, [data-sidebar=menu-button]") && setOpenMobile(false)}
+      >
         <SidebarGroup>
           <SidebarMenu>
             {NAV.map(({ href, label, icon: Icon }) => (
@@ -88,8 +89,10 @@ export function AppSidebar() {
             ))}
           </SidebarMenu>
         </SidebarGroup>
+        <RecentRuns />
       </SidebarContent>
       <SidebarFooter>
+        <PaletteHint />
         {meta?.fixture_mode && (
           <p className="flex gap-2 px-1.5 text-xs text-warning group-data-[collapsible=icon]:hidden">
             <TriangleAlert className="size-4 shrink-0" />

@@ -2,7 +2,7 @@
 
 import { ChevronRight, Download } from "lucide-react";
 
-import { download } from "@/components/answer/answer-view";
+import { download, fileName } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
 import { stageLabel } from "@/components/answer/trace";
 import { EvidenceEntry } from "@/components/rail/evidence-entry";
@@ -92,7 +92,7 @@ export function AnswerRail({ bundle, view }: { bundle: AnswerBundle; view: View 
         {view.evidence.length ? (
           <ul>
             {view.evidence.map((e) => (
-              <EvidenceEntry key={e.id} e={e} />
+              <EvidenceEntry key={e.id} e={e} name={fileName(bundle.run_id)} />
             ))}
           </ul>
         ) : (
@@ -107,16 +107,18 @@ export function AnswerRail({ bundle, view }: { bundle: AnswerBundle; view: View 
             <KVList items={view.footprint.stages.map((s) => ({ ...s, label: stageLabel(s.label) }))} />
           </section>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          data-testid="download-bundle-rail"
-          className="justify-self-start"
-          onClick={() => download(bundle)}
-        >
-          <Download />
-          Download run bundle
-        </Button>
+        {!view.partial && ( // a partial bundle is not the run's record yet
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="download-bundle-rail"
+            className="justify-self-start"
+            onClick={() => download(bundle)}
+          >
+            <Download />
+            Download run bundle
+          </Button>
+        )}
       </TabsContent>
     </Tabs>
   );

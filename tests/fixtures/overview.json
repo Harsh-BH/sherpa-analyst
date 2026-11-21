@@ -649,7 +649,7 @@
  "trend": {
   "key": "overview-trend",
   "title": "Daily success rate",
-  "summary": "Daily success rate, last 30 days (21 Oct - 19 Nov 2026): 92.2% overall, from 91.4% to 92.8% a day; previous 30 days 92.4%.",
+  "summary": "Daily success rate, last 30 days (21 Oct - 19 Nov 2026): 92.2% overall, from 91.4% to 92.8% a day; previous 30 days 92.4%. Unusual days (|z| ≥ 2 against the last 30 days' daily mean and standard deviation): 18 Nov 91.4%.",
   "spec": {
    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
    "title": {
@@ -667,210 +667,330 @@
       "date": "2026-10-21T00:00:00",
       "series": "Last 30 days",
       "value": 0.9267520308412501,
-      "_label": "92.7%"
+      "_label": "92.7%",
+      "_change": "+0.23 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 21 Oct compared with the day before?"
      },
      {
       "day": "2026-10-22T00:00:00",
       "date": "2026-10-22T00:00:00",
       "series": "Last 30 days",
       "value": 0.9148813739376771,
-      "_label": "91.5%"
+      "_label": "91.5%",
+      "_change": "-1.19 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 22 Oct compared with the day before?"
      },
      {
       "day": "2026-10-23T00:00:00",
       "date": "2026-10-23T00:00:00",
       "series": "Last 30 days",
       "value": 0.9233882625036137,
-      "_label": "92.3%"
+      "_label": "92.3%",
+      "_change": "+0.85 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 23 Oct compared with the day before?"
      },
      {
       "day": "2026-10-24T00:00:00",
       "date": "2026-10-24T00:00:00",
       "series": "Last 30 days",
       "value": 0.9264785675529029,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "+0.31 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 24 Oct compared with the day before?"
      },
      {
       "day": "2026-10-25T00:00:00",
       "date": "2026-10-25T00:00:00",
       "series": "Last 30 days",
       "value": 0.9238183205493755,
-      "_label": "92.4%"
+      "_label": "92.4%",
+      "_change": "-0.27 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 25 Oct compared with the day before?"
      },
      {
       "day": "2026-10-26T00:00:00",
       "date": "2026-10-26T00:00:00",
       "series": "Last 30 days",
       "value": 0.9248898778438763,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "+0.11 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 26 Oct compared with the day before?"
      },
      {
       "day": "2026-10-27T00:00:00",
       "date": "2026-10-27T00:00:00",
       "series": "Last 30 days",
       "value": 0.9253305920284098,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "+0.04 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 27 Oct compared with the day before?"
      },
      {
       "day": "2026-10-28T00:00:00",
       "date": "2026-10-28T00:00:00",
       "series": "Last 30 days",
       "value": 0.9259562468731524,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "+0.06 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 28 Oct compared with the day before?"
      },
      {
       "day": "2026-10-29T00:00:00",
       "date": "2026-10-29T00:00:00",
       "series": "Last 30 days",
       "value": 0.9255525226732412,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "-0.04 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 29 Oct compared with the day before?"
      },
      {
       "day": "2026-10-30T00:00:00",
       "date": "2026-10-30T00:00:00",
       "series": "Last 30 days",
       "value": 0.9256133706570064,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "+0.01 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 30 Oct compared with the day before?"
      },
      {
       "day": "2026-10-31T00:00:00",
       "date": "2026-10-31T00:00:00",
       "series": "Last 30 days",
       "value": 0.9232657833203429,
-      "_label": "92.3%"
+      "_label": "92.3%",
+      "_change": "-0.23 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 31 Oct compared with the day before?"
      },
      {
       "day": "2026-11-01T00:00:00",
       "date": "2026-11-01T00:00:00",
       "series": "Last 30 days",
       "value": 0.9244293894668925,
-      "_label": "92.4%"
+      "_label": "92.4%",
+      "_change": "+0.12 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 1 Nov compared with the day before?"
      },
      {
       "day": "2026-11-02T00:00:00",
       "date": "2026-11-02T00:00:00",
       "series": "Last 30 days",
       "value": 0.9251929187471629,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "+0.08 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 2 Nov compared with the day before?"
      },
      {
       "day": "2026-11-03T00:00:00",
       "date": "2026-11-03T00:00:00",
       "series": "Last 30 days",
       "value": 0.9263865855905656,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "+0.12 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 3 Nov compared with the day before?"
      },
      {
       "day": "2026-11-04T00:00:00",
       "date": "2026-11-04T00:00:00",
       "series": "Last 30 days",
       "value": 0.9224944933920705,
-      "_label": "92.2%"
+      "_label": "92.2%",
+      "_change": "-0.39 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 4 Nov compared with the day before?"
      },
      {
       "day": "2026-11-05T00:00:00",
       "date": "2026-11-05T00:00:00",
       "series": "Last 30 days",
       "value": 0.921759957420385,
-      "_label": "92.2%"
+      "_label": "92.2%",
+      "_change": "-0.07 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 5 Nov compared with the day before?"
      },
      {
       "day": "2026-11-06T00:00:00",
       "date": "2026-11-06T00:00:00",
       "series": "Last 30 days",
       "value": 0.9248930569266206,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "+0.31 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 6 Nov compared with the day before?"
      },
      {
       "day": "2026-11-07T00:00:00",
       "date": "2026-11-07T00:00:00",
       "series": "Last 30 days",
       "value": 0.9259976293954959,
-      "_label": "92.6%"
+      "_label": "92.6%",
+      "_change": "+0.11 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 7 Nov compared with the day before?"
      },
      {
       "day": "2026-11-08T00:00:00",
       "date": "2026-11-08T00:00:00",
       "series": "Last 30 days",
       "value": 0.9252450980392157,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "-0.08 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 8 Nov compared with the day before?"
      },
      {
       "day": "2026-11-09T00:00:00",
       "date": "2026-11-09T00:00:00",
       "series": "Last 30 days",
       "value": 0.9277323216163094,
-      "_label": "92.8%"
+      "_label": "92.8%",
+      "_change": "+0.25 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 9 Nov compared with the day before?"
      },
      {
       "day": "2026-11-10T00:00:00",
       "date": "2026-11-10T00:00:00",
       "series": "Last 30 days",
       "value": 0.9248472794431027,
-      "_label": "92.5%"
+      "_label": "92.5%",
+      "_change": "-0.29 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 10 Nov compared with the day before?"
      },
      {
       "day": "2026-11-11T00:00:00",
       "date": "2026-11-11T00:00:00",
       "series": "Last 30 days",
       "value": 0.926866751039595,
-      "_label": "92.7%"
+      "_label": "92.7%",
+      "_change": "+0.20 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 11 Nov compared with the day before?"
      },
      {
       "day": "2026-11-12T00:00:00",
       "date": "2026-11-12T00:00:00",
       "series": "Last 30 days",
       "value": 0.920047159512685,
-      "_label": "92.0%"
+      "_label": "92.0%",
+      "_change": "-0.68 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 12 Nov compared with the day before?"
      },
      {
       "day": "2026-11-13T00:00:00",
       "date": "2026-11-13T00:00:00",
       "series": "Last 30 days",
       "value": 0.9166889502926583,
-      "_label": "91.7%"
+      "_label": "91.7%",
+      "_change": "-0.34 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 13 Nov compared with the day before?"
      },
      {
       "day": "2026-11-14T00:00:00",
       "date": "2026-11-14T00:00:00",
       "series": "Last 30 days",
       "value": 0.9161526545556964,
-      "_label": "91.6%"
+      "_label": "91.6%",
+      "_change": "-0.05 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 14 Nov compared with the day before?"
      },
      {
       "day": "2026-11-15T00:00:00",
       "date": "2026-11-15T00:00:00",
       "series": "Last 30 days",
       "value": 0.916481486825777,
-      "_label": "91.6%"
+      "_label": "91.6%",
+      "_change": "+0.03 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 15 Nov compared with the day before?"
      },
      {
       "day": "2026-11-16T00:00:00",
       "date": "2026-11-16T00:00:00",
       "series": "Last 30 days",
       "value": 0.9183064007698178,
-      "_label": "91.8%"
+      "_label": "91.8%",
+      "_change": "+0.18 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 16 Nov compared with the day before?"
      },
      {
       "day": "2026-11-17T00:00:00",
       "date": "2026-11-17T00:00:00",
       "series": "Last 30 days",
       "value": 0.9199594731509625,
-      "_label": "92.0%"
+      "_label": "92.0%",
+      "_change": "+0.17 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 17 Nov compared with the day before?"
      },
      {
       "day": "2026-11-18T00:00:00",
       "date": "2026-11-18T00:00:00",
       "series": "Last 30 days",
       "value": 0.9135263784212614,
-      "_label": "91.4%"
+      "_label": "91.4%",
+      "_change": "-0.64 pp",
+      "_unusual": true,
+      "_hint": "Unusual day. Click to ask Sherpa why",
+      "_ask": "Why did success rate fall on 18 Nov compared with the day before?"
      },
      {
       "day": "2026-11-19T00:00:00",
       "date": "2026-11-19T00:00:00",
       "series": "Last 30 days",
       "value": 0.9156688554139307,
-      "_label": "91.6%"
+      "_label": "91.6%",
+      "_change": "+0.21 pp",
+      "_unusual": false,
+      "_hint": "Click to ask Sherpa why",
+      "_ask": "Why did success rate rise on 19 Nov compared with the day before?"
      },
      {
       "day": "2026-10-21T00:00:00",
@@ -1085,12 +1205,6 @@
     ]
    },
    "height": 200,
-   "mark": {
-    "type": "line",
-    "point": {
-     "size": 18
-    }
-   },
    "encoding": {
     "x": {
      "field": "day",
@@ -1098,7 +1212,10 @@
      "title": null,
      "axis": {
       "labelFlush": 40,
-      "format": "%d %b"
+      "format": "%d %b",
+      "tickCount": {
+       "interval": "week"
+      }
      }
     },
     "y": {
@@ -1164,7 +1281,204 @@
       "title": "Success rate"
      }
     ]
-   }
+   },
+   "layer": [
+    {
+     "mark": {
+      "type": "line",
+      "point": {
+       "size": 18
+      }
+     },
+     "transform": [
+      {
+       "calculate": "null",
+       "as": "_ask"
+      }
+     ]
+    },
+    {
+     "name": "ask_points",
+     "transform": [
+      {
+       "filter": {
+        "field": "series",
+        "equal": "Last 30 days"
+       }
+      }
+     ],
+     "mark": {
+      "type": "point",
+      "filled": true,
+      "opacity": 1,
+      "cursor": "pointer"
+     },
+     "encoding": {
+      "size": {
+       "condition": {
+        "test": "datum._unusual",
+        "value": 90
+       },
+       "value": 30
+      },
+      "color": {
+       "condition": {
+        "test": "datum._unusual",
+        "value": "#D55E00"
+       },
+       "value": "#0072B2"
+      },
+      "tooltip": [
+       {
+        "field": "date",
+        "type": "temporal",
+        "title": "Date",
+        "format": "%d %b %Y"
+       },
+       {
+        "field": "_label",
+        "title": "Success rate"
+       },
+       {
+        "field": "_change",
+        "title": "vs day before"
+       },
+       {
+        "field": "_hint",
+        "title": "Tip"
+       }
+      ]
+     }
+    }
+   ]
   }
- }
+ },
+ "unusual": [
+  {
+   "label": "18 Nov · 91.4%",
+   "question": "Why did success rate fall on 18 Nov compared with the day before?"
+  }
+ ],
+ "days": [
+  {
+   "label": "21 Oct · 92.7%",
+   "question": "Why did success rate rise on 21 Oct compared with the day before?"
+  },
+  {
+   "label": "22 Oct · 91.5%",
+   "question": "Why did success rate fall on 22 Oct compared with the day before?"
+  },
+  {
+   "label": "23 Oct · 92.3%",
+   "question": "Why did success rate rise on 23 Oct compared with the day before?"
+  },
+  {
+   "label": "24 Oct · 92.6%",
+   "question": "Why did success rate rise on 24 Oct compared with the day before?"
+  },
+  {
+   "label": "25 Oct · 92.4%",
+   "question": "Why did success rate fall on 25 Oct compared with the day before?"
+  },
+  {
+   "label": "26 Oct · 92.5%",
+   "question": "Why did success rate rise on 26 Oct compared with the day before?"
+  },
+  {
+   "label": "27 Oct · 92.5%",
+   "question": "Why did success rate rise on 27 Oct compared with the day before?"
+  },
+  {
+   "label": "28 Oct · 92.6%",
+   "question": "Why did success rate rise on 28 Oct compared with the day before?"
+  },
+  {
+   "label": "29 Oct · 92.6%",
+   "question": "Why did success rate fall on 29 Oct compared with the day before?"
+  },
+  {
+   "label": "30 Oct · 92.6%",
+   "question": "Why did success rate rise on 30 Oct compared with the day before?"
+  },
+  {
+   "label": "31 Oct · 92.3%",
+   "question": "Why did success rate fall on 31 Oct compared with the day before?"
+  },
+  {
+   "label": "1 Nov · 92.4%",
+   "question": "Why did success rate rise on 1 Nov compared with the day before?"
+  },
+  {
+   "label": "2 Nov · 92.5%",
+   "question": "Why did success rate rise on 2 Nov compared with the day before?"
+  },
+  {
+   "label": "3 Nov · 92.6%",
+   "question": "Why did success rate rise on 3 Nov compared with the day before?"
+  },
+  {
+   "label": "4 Nov · 92.2%",
+   "question": "Why did success rate fall on 4 Nov compared with the day before?"
+  },
+  {
+   "label": "5 Nov · 92.2%",
+   "question": "Why did success rate fall on 5 Nov compared with the day before?"
+  },
+  {
+   "label": "6 Nov · 92.5%",
+   "question": "Why did success rate rise on 6 Nov compared with the day before?"
+  },
+  {
+   "label": "7 Nov · 92.6%",
+   "question": "Why did success rate rise on 7 Nov compared with the day before?"
+  },
+  {
+   "label": "8 Nov · 92.5%",
+   "question": "Why did success rate fall on 8 Nov compared with the day before?"
+  },
+  {
+   "label": "9 Nov · 92.8%",
+   "question": "Why did success rate rise on 9 Nov compared with the day before?"
+  },
+  {
+   "label": "10 Nov · 92.5%",
+   "question": "Why did success rate fall on 10 Nov compared with the day before?"
+  },
+  {
+   "label": "11 Nov · 92.7%",
+   "question": "Why did success rate rise on 11 Nov compared with the day before?"
+  },
+  {
+   "label": "12 Nov · 92.0%",
+   "question": "Why did success rate fall on 12 Nov compared with the day before?"
+  },
+  {
+   "label": "13 Nov · 91.7%",
+   "question": "Why did success rate fall on 13 Nov compared with the day before?"
+  },
+  {
+   "label": "14 Nov · 91.6%",
+   "question": "Why did success rate fall on 14 Nov compared with the day before?"
+  },
+  {
+   "label": "15 Nov · 91.6%",
+   "question": "Why did success rate rise on 15 Nov compared with the day before?"
+  },
+  {
+   "label": "16 Nov · 91.8%",
+   "question": "Why did success rate rise on 16 Nov compared with the day before?"
+  },
+  {
+   "label": "17 Nov · 92.0%",
+   "question": "Why did success rate rise on 17 Nov compared with the day before?"
+  },
+  {
+   "label": "18 Nov · 91.4%",
+   "question": "Why did success rate fall on 18 Nov compared with the day before?"
+  },
+  {
+   "label": "19 Nov · 91.6%",
+   "question": "Why did success rate rise on 19 Nov compared with the day before?"
+  }
+ ]
 }

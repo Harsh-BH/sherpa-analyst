@@ -1,9 +1,11 @@
 "use client";
 
+import { Download } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { VisualizationSpec } from "vega-embed";
+import type { Result, VisualizationSpec } from "vega-embed";
 
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import COLORS from "@/lib/chart-colors.json";
 import { chartTheme, type ChartTheme } from "@/lib/chart-theme";
@@ -11,6 +13,17 @@ import { subscribeTheme } from "@/lib/theme";
 
 type Spec = { [key: string]: unknown };
 type VegaEmbed = typeof import("vega-embed");
+type Datum = Record<string, unknown>;
+type ChartProps = {
+  spec: Spec;
+  /** Called with the datum of a clicked mark. A drillable datum carries `_ask`, the question Python built. */
+  onDatumClick?: (datum: Datum) => void;
+  /** When set, a "Download PNG" button (on hover and focus) saves the chart as `<downloadName>.png`. */
+  downloadName?: string;
+  /** The drawing is hidden from assistive tech: a parent names the chart (ChartCard's summary), so Vega's own
+   * per-mark descriptions (dates it formats itself) would only repeat it, mark by mark. */
+  decorative?: boolean;
+};
 
 const MAPS = { light: new Map(Object.entries(COLORS.light)), dark: new Map(Object.entries(COLORS.dark)) };
 const isDark = () => document.documentElement.classList.contains("dark");
@@ -23,10 +36,20 @@ function recolor(v: unknown, map: Map<string, string>): unknown {
   return v;
 }
 
-function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
+function Chart({ spec: next, lib, onDatumClick, downloadName, decorative }: ChartProps & { lib: VegaEmbed }) {
+  // The spec by content: an equal one from a newer response (an answer's result after its partial) keeps the drawn
+  // chart instead of blanking and re-embedding it.
+  const [spec, setSpec] = useState(next);
+  if (next !== spec && JSON.stringify(next) !== JSON.stringify(spec)) setSpec(next);
   const ref = useRef<HTMLDivElement>(null);
   const theme: ChartTheme = useSyncExternalStore(subscribeTheme, isDark, () => false) ? "dark" : "light";
   const [failed, setFailed] = useState<{ spec: Spec; message: string } | null>(null);
+  const [drawn, setDrawn] = useState<{ spec: Spec; theme: ChartTheme; view: Result["view"] } | null>(null);
+  // The latest handler, so a new callback identity never re-embeds the chart
+  const onClick = useRef(onDatumClick);
+  useEffect(() => {
+    onClick.current = onDatumClick;
+  });
 
   useEffect(() => {
     const copy = recolor(spec, MAPS[theme]) as Spec;
@@ -59,6 +82,10 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
         (r) => {
           if (!live) return r.finalize();
           done = r.finalize;
+          r.view.addEventListener("click", (_e, item) => {
+            if (item?.datum) onClick.current?.(item.datum as Datum);
+          });
+          setDrawn({ spec, theme, view: r.view });
           el.style.opacity = "";
           el.classList.add("animate-chart-in");
         },
@@ -73,13 +100,40 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
     };
   }, [spec, theme, lib]);
 
+  const view = drawn?.spec === spec && drawn.theme === theme ? drawn.view : null;
+  async function download() {
+    if (!view) return;
+    // The theme draws on transparent; the PNG gets the card colour so dark-theme text stays legible in a viewer.
+    const bg = view.background();
+    view.background(getComputedStyle(ref.current!).getPropertyValue("--card").trim() || "white");
+    const a = document.createElement("a");
+    a.href = await view.toImageURL("png", 2);
+    view.background(bg).runAsync();
+    a.download = `${downloadName}.png`;
+    a.click();
+  }
+
   return (
-    <>
-      <div ref={ref} className="w-full min-w-0" />
+    <div className="group/chart relative min-w-0">
+      <div ref={ref} aria-hidden={decorative || undefined} className="w-full min-w-0" />
       {failed?.spec === spec && (
         <p className="text-xs text-muted-foreground wrap-anywhere">This chart could not be drawn: {failed.message}</p>
       )}
-    </>
+      {/* After the chart in the DOM, and only once it has drawn, so its icon is never taken for the chart's svg.
+          On a phone or touch screen it is always shown, so it sits under the chart, not on its legend. */}
+      {downloadName && view && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Download PNG"
+          title="Download PNG"
+          onClick={download}
+          className="absolute top-0 right-0 bg-card/80 text-muted-foreground transition-opacity max-md:static max-md:ml-auto max-md:flex pointer-coarse:static pointer-coarse:ml-auto pointer-coarse:flex pointer-fine:opacity-0 pointer-fine:group-hover/chart:opacity-100 pointer-fine:focus-visible:opacity-100"
+        >
+          <Download />
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -88,8 +142,8 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
 export const VegaChart = dynamic(
   () =>
     import("vega-embed").then((lib) => {
-      function LoadedChart({ spec }: { spec: Spec }) {
-        return <Chart spec={spec} lib={lib} />;
+      function LoadedChart(props: ChartProps) {
+        return <Chart {...props} lib={lib} />;
       }
       return LoadedChart;
     }),

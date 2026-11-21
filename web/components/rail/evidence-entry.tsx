@@ -49,8 +49,9 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-/** One evidence entry in the rail. Selected, it opens (height animation) to show what the claims citing it rest on. */
-export function EvidenceEntry({ e }: { e: Evidence }) {
+/** One evidence entry in the rail. Selected, it opens (height animation) to show what the claims citing it rest on.
+ * Its chart saves as `<name>-<evidence id>.png`. */
+export function EvidenceEntry({ e, name }: { e: Evidence; name: string }) {
   const { selectedEvidenceId, selectEvidence } = useSherpa();
   const selected = selectedEvidenceId === e.id;
   const ref = useRef<HTMLLIElement>(null);
@@ -106,7 +107,7 @@ export function EvidenceEntry({ e }: { e: Evidence }) {
                 <DataTable table={e.table} />
               </section>
             )}
-            {e.chart && <VegaChart spec={e.chart} />}
+            {e.chart && <VegaChart spec={e.chart} downloadName={`${name}-${e.id}`} />}
             <p className="text-xs text-muted-foreground">
               {e.cited_by.length ? `Cited by claim ${e.cited_by.join(", ")}` : "No claim cites this evidence."}
             </p>

@@ -53,6 +53,12 @@ export function EvalView() {
   const [data, setData] = useState<EvalResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<number | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
+  // Below 1280 px the rail is a sheet: picking a row opens it.
+  const pick = (i: number) => {
+    setSel(i);
+    setRailOpen(true);
+  };
 
   useEffect(() => {
     getEval().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)));
@@ -78,19 +84,22 @@ export function EvalView() {
           <p className="text-[13px] text-muted-foreground">
             Generated {ok.generated_at ?? "n/a"} · data {ok.data_version ?? "n/a"}
           </p>
-          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t, i) => (
-              <div
-                key={t.label}
-                data-testid="eval-tile"
-                style={{ "--i": i } as CSSProperties}
-                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
-              >
-                <div className="section-label">{t.label}</div>
-                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
-                <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
-              </div>
-            ))}
+          {/* four tiles a row once their column (not the window) is wide enough, as ChartGrid does */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-2.5 @2xl:grid-cols-4">
+              {ok.tiles.map((t, i) => (
+                <div
+                  key={t.label}
+                  data-testid="eval-tile"
+                  style={{ "--i": i } as CSSProperties}
+                  className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+                >
+                  <div className="section-label">{t.label}</div>
+                  <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
+                  <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
+                </div>
+              ))}
+            </div>
           </div>
           <ChartGrid charts={ok.charts} from={ok.tiles.length} />
           <div
@@ -111,8 +120,8 @@ export function EvalView() {
                     key={i}
                     tabIndex={0}
                     aria-selected={sel === i}
-                    onClick={() => setSel(i)}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
+                    onClick={() => pick(i)}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), pick(i))}
                     className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                   >
                     <TableCell>{c.id}</TableCell>
@@ -136,5 +145,7 @@ export function EvalView() {
     <p className="p-4 text-[13px] text-muted-foreground">Select a case to see its details.</p>
   );
 
-  return <Workspace railTitle="Case" center={center} rail={rail} />;
+  return (
+    <Workspace railTitle="Case" railOpen={railOpen} onRailOpenChange={setRailOpen} center={center} rail={rail} />
+  );
 }

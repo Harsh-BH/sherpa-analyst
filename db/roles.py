@@ -113,8 +113,8 @@ def build_sql(access: Access, db_name: str, password: str) -> str:
                 f"USING (region = ANY (ARRAY[{regions}]));"
             )
 
-    out.append("\n-- app role: the run log only")
-    out += [f"GRANT USAGE ON SCHEMA app TO {app};", f"GRANT INSERT, SELECT ON app.runs TO {app};"]
+    out.append("\n-- app role: the run log and its feedback, insert-only (no UPDATE or DELETE)")
+    out += [f"GRANT USAGE ON SCHEMA app TO {app};", f"GRANT INSERT, SELECT ON app.runs, app.run_feedback TO {app};"]
     return "\n".join(out) + "\n"
 
 

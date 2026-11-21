@@ -33,7 +33,7 @@ def ask(**body):
 def fake_pipeline(stages=()):
     class Fake:
         @staticmethod
-        def answer(q, p, plan=None, on_stage=None):
+        def answer(q, p, plan=None, on_stage=None, on_partial=None):
             for s in stages:
                 on_stage(s)
             return backend.load_fixture("explain_change")
@@ -54,8 +54,8 @@ def test_meta_shape():
 
 def test_ask_streams_result_in_fixture_mode():
     events = sse(ask())
-    assert [n for n, _ in events] == ["result"]
-    d = events[0][1]
+    assert [n for n, _ in events] == ["partial", "result"]   # fixture mode sends the numbers first, as the pipeline does
+    d = events[-1][1]
     assert d["bundle"]["status"] == "answered" and d["view"]["claims"]
 
 
@@ -100,7 +100,7 @@ def test_ask_fixture_param_only_in_fixture_mode(monkeypatch):
 def test_ask_patch_applies():
     c = backend.load_fixture("clarify")
     r = ask(question=c.question, plan=c.plan.model_dump(mode="json"), patch=c.clarification.options[0].plan_patch)
-    assert sse(r)[0][1]["bundle"]["status"] != "clarify"
+    assert sse(r)[-1][1]["bundle"]["status"] != "clarify"
 
 
 def test_ask_unexpected_error_keeps_a_run_id(monkeypatch):
@@ -116,7 +116,7 @@ def test_ask_keeps_a_slow_stage_alive(monkeypatch):
     from app import api
     monkeypatch.setattr(api, "KEEPALIVE_S", 0.05)
 
-    def slow(q, p, plan=None, on_stage=None):
+    def slow(q, p, plan=None, on_stage=None, on_partial=None):
         time.sleep(0.3)
         return backend.load_fixture("explain_change")
     monkeypatch.setattr(backend, "answer", slow)
@@ -164,17 +164,17 @@ def test_runs_ok(monkeypatch):
     monkeypatch.setattr(sherpa.runs, "recent_runs", lambda n: [{
         "run_id": "r1", "asked_at": __import__("datetime").datetime(2026, 11, 20, 10, 0), "persona": "head", "question": "q",
         "status": "answered", "route": None, "confidence": "high", "timings_ms": {"total": 4200, "plan": 90},
-        "llm_usage": {"backend": "claude-cli", "cost_usd": 0.1234}}])
+        "llm_usage": {"backend": "claude-cli", "cost_usd": 0.1234}, "rating": -1}])
     r = client.get("/api/runs").json()
-    assert r["status"] == "ok" and len(r["tiles"]) == 7 and r["tiles"][0] == {"label": "Runs", "value": "3"}
-    assert r["tiles"][6]["value"] == "n/a"
+    assert r["status"] == "ok" and len(r["tiles"]) == 8 and r["tiles"][0] == {"label": "Runs", "value": "3"}
+    assert r["tiles"][6]["value"] == "n/a" and r["tiles"][7] == {"label": "Helpful", "value": "n/a"}
     row = r["recent"][0]
-    assert row["total"] == "4.2 s" and row["cost"] == "$0.12" and row["route"] == "n/a"
+    assert row["total"] == "4.2 s" and row["cost"] == "$0.12" and row["route"] == "n/a" and row["feedback"] == "down"
     assert {"label": "plan", "value": "90 ms"} in row["footprint"]
 
 
 def test_partial_fixture_view():
-    b = sse(ask(fixture="partial"))[0][1]
+    b = sse(ask(fixture="partial"))[-1][1]
 
     def no_float(x):   # chart specs ("chart", "spec") are plot data for vega, a fraction is a bar width: not text
         if isinstance(x, dict):
@@ -194,7 +194,7 @@ def test_overview_serves_its_fixture_in_fixture_mode():
         assert k["value"] and k["delta"] and k["summary"] and k["direction"] in ("up", "down", "flat")
         assert k["tone"] in ("positive", "negative", "neutral") and k["spark"]["height"] == 40
         assert len(k["spark"]["data"]["values"]) == 30
-    assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["mark"]["type"] == "line"
+    assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["layer"][0]["mark"]["type"] == "line"
     assert client.get("/api/overview?persona=nobody").status_code == 422
     # the fixture is head's: another persona gets no panel rather than head's all-region numbers
     assert client.get("/api/overview?persona=rm_south").json() == {"available": False,

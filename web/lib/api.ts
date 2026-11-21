@@ -13,10 +13,15 @@ export type RunsResponse = S["RunsOk"] | S["RunsUnavailable"];
 /** GET /api/overview?persona=<key>: `available: false` (with a reason) means hide the panel. */
 export type OverviewResponse = S["OverviewOk"] | S["OverviewUnavailable"];
 export type Kpi = S["Kpi"];
+/** GET /api/data-health?persona=<key>: the home rail's dq issues, last 30 days; `available: false` hides it. */
+export type DataHealthResponse = S["DataHealth"] | S["OverviewUnavailable"];
+export type DataIssue = S["DataIssue"];
 /** A dashboard chart: draw `spec` with VegaChart, use `summary` as its aria-label. */
 export type ChartView = S["ChartView"];
 /** A trace stage: `fraction` is its share of the total, a bar width only (null without a total). */
 export type StageTime = S["StageTime"];
+/** A run the persona can reopen: GET /api/history?persona=<key>, newest first. */
+export type HistoryItem = S["HistoryItem"];
 /** `elapsed` is `t_ms` formatted by the API (fmt_ms): the trace shows it as-is. */
 export type Stage = { name: string; t_ms: number; elapsed: string };
 
@@ -46,6 +51,35 @@ export const getOverview = (persona: string, signal?: AbortSignal) =>
     (r) => r.json() as Promise<OverviewResponse>,
   );
 
+const q = encodeURIComponent;
+export const getHistory = (persona: string, limit = 20) =>
+  getJSON<HistoryItem[]>(`/api/history?persona=${q(persona)}&limit=${limit}`);
+
+/** A saved run as /api/ask's result; null when it is missing or another persona's (the API's bare 404). */
+export async function getRun(runId: string, persona: string): Promise<AskResult | null> {
+  try {
+    return await getJSON<AskResult>(`/api/runs/${q(runId)}?persona=${q(persona)}`);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("HTTP 404")) return null;
+    throw e;
+  }
+}
+
+/** Thumbs up (1) or down (-1); the latest rating wins. */
+export async function sendFeedback(runId: string, persona: string, rating: 1 | -1): Promise<S["FeedbackSaved"]> {
+  const res = await request(`/api/runs/${q(runId)}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ persona, rating }),
+  });
+  return res.json();
+}
+
+export const getDataHealth = (persona: string, signal?: AbortSignal) =>
+  request(`/api/data-health?persona=${encodeURIComponent(persona)}`, { signal }).then(
+    (r) => r.json() as Promise<DataHealthResponse>,
+  );
+
 export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   const res = await request("/api/explore/plan", {
     method: "POST",
@@ -55,10 +89,11 @@ export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   return res.json();
 }
 
-/** POST /api/ask and read its SSE stream: `stage` events as stages start, then one `result`. */
+/** POST /api/ask and read its SSE stream: `stage` events as stages start, at most one `partial` (an AskResult with
+ * `view.partial`: the numbers before the narrative; its bundle is not final), then one `result`. */
 export async function ask(
   req: AskRequest,
-  on: { stage(e: Stage): void; result(r: AskResult): void },
+  on: { stage(e: Stage): void; partial?(r: AskResult): void; result(r: AskResult): void },
   signal: AbortSignal,
 ): Promise<void> {
   const res = await request("/api/ask", {
@@ -89,7 +124,7 @@ export async function ask(
         if (line.startsWith("event:")) event = line.slice(6).trim();
         else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
-      if (event !== "stage" && event !== "result") continue;
+      if (event !== "stage" && event !== "partial" && event !== "result") continue;
       let payload;
       try {
         payload = JSON.parse(data.join("\n"));
@@ -97,6 +132,7 @@ export async function ask(
         throw new Error("The answer stream was malformed");
       }
       if (event === "stage") on.stage(payload);
+      else if (event === "partial") on.partial?.(payload);
       else {
         gotResult = true;
         on.result(payload);

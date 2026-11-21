@@ -141,6 +141,28 @@ test("runs: note, charts above the table and coloured status badges", async ({ p
   await expect(page.getByTestId("runs-empty")).toHaveCount(0);
 });
 
+test("runs: at 1440 px with the rail open the table fits, Feedback column included", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const recent = ["answered", "clarify", "answered"].map((s, i) => ({
+    ...run(s, i),
+    persona: "rm_south",
+    question: "Why did success rate drop last week in the South region?",
+    route: "catalog",
+    confidence: "medium",
+    total: "5.6 s",
+    cost: "$0.0000",
+    feedback: [null, "up", "down"][i],
+  }));
+  await page.route("**/api/runs", (r) => r.fulfill({ json: { status: "ok", tiles: TILES, recent, charts: [] } }));
+  await page.goto("/runs");
+  await expect(page.getByTestId("rail")).toBeVisible();
+  const table = page.getByTestId("runs-table");
+  await expect(table.getByRole("columnheader", { name: "Feedback" })).toBeAttached();
+  await expect(table.getByTestId("run-feedback").nth(1)).toHaveText("Helpful");
+  const fit = await table.evaluate((el) => [el.parentElement!.scrollWidth, el.parentElement!.clientWidth]);
+  expect(fit[0]).toBeLessThanOrEqual(fit[1]);
+});
+
 test("runs: with no app runs, an empty state and no charts", async ({ page }) => {
   await page.route("**/api/runs", (r) => r.fulfill({ json: { status: "ok", tiles: TILES, recent: [], charts: [] } }));
   await page.goto("/runs");

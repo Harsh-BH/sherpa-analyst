@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from app.answer_extras import (KEY_COLUMNS, FollowUp, HeadlinePart, dim_label, drillable_waterfall, follow_ups,
+                                headline_parts, markdown)
 from sherpa import charts
 from sherpa.config import load_access, load_catalog
 from sherpa.contracts import AnswerBundle, DimensionDecomposition, Evidence, SegmentEffect, format_value
@@ -25,6 +27,8 @@ class KV(BaseModel):
 class Table(BaseModel):
     columns: list[str]
     rows: list[list[str]]
+    key_columns: list[str] = []   # shown by default when set; the rest behind "More columns"
+    more_label: str | None = None  # the toggle's text, 'More columns (7)'; None when nothing is hidden
 
 
 class ClaimView(BaseModel):
@@ -89,6 +93,7 @@ class Footprint(BaseModel):
 
 
 class View(BaseModel):
+    partial: bool = False   # the numbers before the narrative: no headline, claims or confidence yet (SSE `partial`)
     claims: list[ClaimView]
     evidence: list[EvidenceView]
     key_charts: list[KeyChart]
@@ -98,6 +103,9 @@ class View(BaseModel):
     recon: ReconView | None
     footprint: Footprint
     as_of: str | None
+    follow_ups: list[FollowUp] = []          # "Ask next" chips; each carries the plan it runs
+    headline_parts: list[HeadlinePart] = []  # the headline cut into text and number chips; joins back exactly
+    markdown: str = ""                       # the answer for "Copy answer"
 
 
 def fmt_ms(ms: int | float | None) -> str:
@@ -172,19 +180,14 @@ def _effects_table(effects: list[tuple[str, SegmentEffect]]) -> Table:
     def pct(v): return "" if v is None else f"{v * 100:.1f}%"
     def pp(v): return f"{v * 100:+.2f} pp"
     def yn(v): return "yes" if v else "no"
+    columns = ["segment", "share before", "share now", "rate before", "rate now", "mix (pp)", "rate (pp)", "total (pp)",
+               "z", "q (BH)", "supported", "significant", "material"]
     return Table(
-        columns=["segment", "share before", "share now", "rate before", "rate now", "mix (pp)", "rate (pp)",
-                 "total (pp)", "z", "q (BH)", "supported", "significant", "material"],
+        columns=columns,
         rows=[[label, pct(e.share0), pct(e.share1), pct(e.rate0), pct(e.rate1), pp(e.mix_effect), pp(e.rate_effect),
                pp(e.total_effect), "" if e.z is None else f"{e.z:.2f}", "" if e.q_value is None else f"{e.q_value:.2g}",
-               yn(e.supported), yn(e.significant), yn(e.material)] for label, e in effects])
-
-
-def _dim_label(name: str) -> str:
-    try:
-        return load_catalog().dimension(name).label
-    except KeyError:
-        return name.replace("_", " ")
+               yn(e.supported), yn(e.significant), yn(e.material)] for label, e in effects],
+        key_columns=KEY_COLUMNS, more_label=f"More columns ({sum(c not in KEY_COLUMNS for c in columns)})")
 
 
 def simpson_callout(dec: DimensionDecomposition) -> str | None:
@@ -214,8 +217,10 @@ def _driver_section(b: AnswerBundle) -> DriverSection:
         tables=tables, drilldown=drill, notes=list(d.notes))
 
 
-def _footprint(b: AnswerBundle) -> Footprint:
+def _footprint(b: AnswerBundle, partial: bool = False) -> Footprint:
+    """A partial's footprint keeps the final one's items, "…" until known, so the line keeps its height at the swap."""
     t, u = b.timings_ms, b.llm_usage
+    pending = "…" if partial else None
     try:
         persona = load_access().persona(b.persona).label
     except KeyError:
@@ -224,8 +229,8 @@ def _footprint(b: AnswerBundle) -> Footprint:
     llm = " · ".join(x for x in (u.get("backend"), cost is not None and f"${cost:.4f}") if x)
     cache = f"{t['cache_hits']} of {t['queries']} queries" if "queries" in t and "cache_hits" in t else None
     pairs = [("Run", b.run_id), ("Persona", persona), ("Data", b.data_version),
-             ("As of", b.as_of and f"{b.as_of:%d %b %Y}"), ("Total", "total" in t and fmt_ms(t["total"])),
-             ("LLM", llm), ("Cache", cache)]
+             ("As of", b.as_of and f"{b.as_of:%d %b %Y}"), ("Total", ("total" in t and fmt_ms(t["total"])) or pending),
+             ("LLM", llm or pending), ("Cache", cache or pending)]
     total = t.get("total") or None
     stages = [StageTime(label=s, value=fmt_ms(t[s]), fraction=total and min(t[s] / total, 1.0)) for s in STAGES if s in t]
     summary = " · ".join(x for x in (stages and f"{len(stages)} steps", "total" in t and fmt_ms(t["total"]),
@@ -233,7 +238,7 @@ def _footprint(b: AnswerBundle) -> Footprint:
     return Footprint(items=[KV(label=k, value=v) for k, v in pairs if v], stages=stages, summary=summary)
 
 
-def build_view(b: AnswerBundle) -> View:
+def build_view(b: AnswerBundle, *, partial: bool = False) -> View:
     ids = {e.id for e in b.evidence}
     claims, cited = [], {e.id: [] for e in b.evidence}
     for n, c in enumerate(b.claims, 1):
@@ -248,9 +253,14 @@ def build_view(b: AnswerBundle) -> View:
                              values=[KV(label=f"{{{e.id}.{k}}}", value=value_text(e, k)) for k in e.values],
                              table=evidence_table(e, pct), chart=e.chart, cited_by=cited[e.id]) for e in b.evidence]
     dims = b.drivers.dimensions if b.drivers else []
-    key_charts = [KeyChart(dimension=d.dimension, label=_dim_label(d.dimension), spec=charts.waterfall(d),
+    try:
+        metric_label = load_catalog().metric(b.drivers.metric).label if b.drivers else ""
+    except KeyError:
+        metric_label = b.drivers.metric
+    key_charts = [KeyChart(dimension=d.dimension, label=dim_label(d.dimension),
+                           spec=drillable_waterfall(charts.waterfall(d), d, metric_label, b.drivers.window),
                            simpson=simpson_callout(d),
-                           summary=f"By {_dim_label(d.dimension).lower()}: mix {format_value(d.mix_total, 'pp')}, "
+                           summary=f"By {dim_label(d.dimension).lower()}: mix {format_value(d.mix_total, 'pp')}, "
                                    f"rate {format_value(d.rate_total, 'pp')}.") for d in dims]
     fallback = None
     if not dims and not b.recon:
@@ -262,8 +272,10 @@ def build_view(b: AnswerBundle) -> View:
                           components=Table(columns=["component", "amount", "note"],
                                            rows=[[c.name.replace("_", " "), format_value(c.amount_inr, "inr"), c.note]
                                                  for c in b.recon.components]))
-    return View(claims=claims, evidence=evidence, key_charts=key_charts,
+    return View(partial=partial, claims=claims, evidence=evidence, key_charts=key_charts,
                 default_dimension=b.drivers.top_dimension if b.drivers and b.drivers.top_dimension in
                 {k.dimension for k in key_charts} else None,
                 fallback_chart=fallback, drivers=_driver_section(b) if b.drivers else None, recon=recon,
-                footprint=_footprint(b), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None)
+                footprint=_footprint(b, partial), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None,
+                follow_ups=follow_ups(b), headline_parts=headline_parts(b.headline, b.plan and b.plan.metric),
+                markdown=markdown(b))

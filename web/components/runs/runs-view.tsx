@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { History } from "lucide-react";
+import { History, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
@@ -21,10 +21,32 @@ const StatusBadge = ({ status }: { status: string }) => (
   </Badge>
 );
 
+// The run's latest thumb (icon and its name for screen readers), or a dash when unrated.
+const FEEDBACK = {
+  up: { icon: ThumbsUp, label: "Helpful", cls: "text-positive" },
+  down: { icon: ThumbsDown, label: "Not helpful", cls: "text-negative" },
+};
+function Feedback({ value }: { value?: "up" | "down" | null }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const { icon: Icon, label, cls } = FEEDBACK[value];
+  return (
+    <span className={cn("inline-flex align-middle", cls)}>
+      <Icon aria-hidden className="size-3.5" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function RunsView() {
   const [data, setData] = useState<RunsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<number | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
+  // Below 1280 px the rail is a sheet: picking a row opens it.
+  const pick = (i: number) => {
+    setSel(i);
+    setRailOpen(true);
+  };
 
   useEffect(() => {
     getRuns().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)));
@@ -48,18 +70,21 @@ export function RunsView() {
       )}
       {ok && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t, i) => (
-              <div
-                key={t.label}
-                data-testid="run-tile"
-                style={{ "--i": i } as CSSProperties}
-                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
-              >
-                <div className="section-label">{t.label}</div>
-                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.value}</div>
-              </div>
-            ))}
+          {/* four tiles a row once their column (not the window) is wide enough, as ChartGrid does */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-2.5 @2xl:grid-cols-4">
+              {ok.tiles.map((t, i) => (
+                <div
+                  key={t.label}
+                  data-testid="run-tile"
+                  style={{ "--i": i } as CSSProperties}
+                  className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+                >
+                  <div className="section-label">{t.label}</div>
+                  <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
           {ok.recent.length === 0 ? (
             <div
@@ -86,6 +111,11 @@ export function RunsView() {
                       {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost"].map((h) => (
                         <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
                       ))}
+                      {/* an icon header, so the table fits at 1440 px with the rail open; its name stays for readers */}
+                      <TableHead className="h-8 text-center text-muted-foreground" title="Feedback">
+                        <ThumbsUp aria-hidden className="inline size-3.5" />
+                        <span className="sr-only">Feedback</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -94,18 +124,19 @@ export function RunsView() {
                         key={r.run_id}
                         tabIndex={0}
                         aria-selected={sel === i}
-                        onClick={() => setSel(i)}
-                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
+                        onClick={() => pick(i)}
+                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), pick(i))}
                         className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                       >
                         <TableCell>{r.asked_at}</TableCell>
                         <TableCell>{r.persona}</TableCell>
-                        <TableCell className="min-w-40 whitespace-normal wrap-break-word">{r.question}</TableCell>
+                        <TableCell className="min-w-32 whitespace-normal wrap-break-word">{r.question}</TableCell>
                         <TableCell><StatusBadge status={r.status} /></TableCell>
                         <TableCell>{r.route}</TableCell>
                         <TableCell>{r.confidence}</TableCell>
                         <TableCell>{r.total}</TableCell>
                         <TableCell>{r.cost}</TableCell>
+                        <TableCell data-testid="run-feedback" className="text-center"><Feedback value={r.feedback} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -127,5 +158,7 @@ export function RunsView() {
     <p className="p-4 text-[13px] text-muted-foreground">Select a run to see its footprint.</p>
   );
 
-  return <Workspace railTitle="Footprint" center={center} rail={rail} />;
+  return (
+    <Workspace railTitle="Footprint" railOpen={railOpen} onRailOpenChange={setRailOpen} center={center} rail={rail} />
+  );
 }

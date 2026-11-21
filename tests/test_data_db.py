@@ -49,7 +49,8 @@ def test_column_grants_equal_access_yaml():
                              (p.db_role,)).fetchone()[0] == 0, f"{p.name} has a table-level grant"
         app = c.execute("SELECT table_schema, table_name, privilege_type FROM information_schema.table_privileges "
                         "WHERE grantee = %s", (ACCESS.app_role,)).fetchall()
-        assert set(app) == {("app", "runs", "INSERT"), ("app", "runs", "SELECT")}
+        assert set(app) == {("app", "runs", "INSERT"), ("app", "runs", "SELECT"),
+                            ("app", "run_feedback", "INSERT"), ("app", "run_feedback", "SELECT")}
         assert c.execute("SELECT count(*) FROM information_schema.column_privileges WHERE grantee = 'PUBLIC' "
                          "AND table_schema IN ('raw', 'analytics', 'app')").fetchone()[0] == 0
 
