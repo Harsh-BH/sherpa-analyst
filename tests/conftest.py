@@ -1,7 +1,11 @@
 """Shared test setup. Tests marked `db` are skipped when the seeded Postgres is not reachable."""
-from functools import lru_cache
+import os
 
-import pytest
+os.environ["SHERPA_RUN_SOURCE"] = "test"   # first: every run pytest saves (TestClient -> API -> pipeline too) is a test run
+
+from functools import lru_cache  # noqa: E402
+
+import pytest  # noqa: E402
 
 
 @lru_cache(maxsize=1)

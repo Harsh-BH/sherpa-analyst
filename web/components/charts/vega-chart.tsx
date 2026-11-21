@@ -34,16 +34,22 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
     // Every charts.py spec is 620 px wide, wider than the rail: fit the container instead (spec: Charts).
     // ponytail: Vega re-reads the container width on window resize only, not when the rail is dragged.
     copy.width = "container";
-    // A fresh element per embed, so a slow earlier embed never draws over this one.
+    // A fresh element per embed, so a slow earlier embed never draws over this one. It stays transparent until
+    // Vega has drawn, then fades and scales in (globals.css chart-in; instant under reduced motion).
     const el = document.createElement("div");
+    el.style.opacity = "0";
+    const width = ref.current!.clientWidth;
     ref.current!.replaceChildren(el);
+    const config = chartTheme(theme);
+    // Vega never wraps a title: on a narrow column a long one ends in an ellipsis instead of running off the card
+    if (width > 0) config.title = { ...config.title, limit: width };
     let done: (() => void) | undefined;
     let live = true;
     lib
       .default(el, copy as VisualizationSpec, {
         actions: false,
         renderer: "svg",
-        config: chartTheme(theme),
+        config,
         tooltip: { theme },
         // Errors only: a container width with a step height (the waterfall) makes Vega-Lite warn
         // 'Dropping "fit-y"' on every render, though "fit-x" is what it keeps and what is wanted.
@@ -51,8 +57,10 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
       })
       .then(
         (r) => {
-          if (live) done = r.finalize;
-          else r.finalize();
+          if (!live) return r.finalize();
+          done = r.finalize;
+          el.style.opacity = "";
+          el.classList.add("animate-chart-in");
         },
         (e) => {
           if (live) setFailed({ spec, message: e instanceof Error ? e.message : String(e) });

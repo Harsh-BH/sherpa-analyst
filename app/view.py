@@ -13,6 +13,8 @@ from sherpa.config import load_access, load_catalog
 from sherpa.contracts import AnswerBundle, DimensionDecomposition, Evidence, SegmentEffect, format_value
 
 STAGES = ("plan", "triage", "analysis", "dq", "narrate", "check")
+STAGE_LABELS = {"plan": "Plan", "triage": "Triage", "analysis": "Analysis", "dq": "Data-quality checks",
+                "narrate": "Narration", "check": "Claim check"}   # as the web trace names them
 
 
 class KV(BaseModel):
@@ -47,6 +49,14 @@ class EvidenceView(BaseModel):
     cited_by: list[int]
 
 
+class ChartView(BaseModel):
+    """A dashboard chart: `summary` is its text alternative (aria-label), `key` a stable id for the page."""
+    key: str
+    title: str
+    summary: str
+    spec: dict
+
+
 class KeyChart(BaseModel):
     dimension: str
     label: str
@@ -68,9 +78,13 @@ class ReconView(BaseModel):
     source_of_truth: str
 
 
+class StageTime(KV):
+    fraction: float | None   # share of the total, for the trace's timing bar width; never displayed as a number
+
+
 class Footprint(BaseModel):
     items: list[KV]
-    stages: list[KV]
+    stages: list[StageTime]
     summary: str
 
 
@@ -212,7 +226,8 @@ def _footprint(b: AnswerBundle) -> Footprint:
     pairs = [("Run", b.run_id), ("Persona", persona), ("Data", b.data_version),
              ("As of", b.as_of and f"{b.as_of:%d %b %Y}"), ("Total", "total" in t and fmt_ms(t["total"])),
              ("LLM", llm), ("Cache", cache)]
-    stages = [KV(label=s, value=fmt_ms(t[s])) for s in STAGES if s in t]
+    total = t.get("total") or None
+    stages = [StageTime(label=s, value=fmt_ms(t[s]), fraction=total and min(t[s] / total, 1.0)) for s in STAGES if s in t]
     summary = " · ".join(x for x in (stages and f"{len(stages)} steps", "total" in t and fmt_ms(t["total"]),
                                      cost is not None and f"${cost:.4f}") if x)
     return Footprint(items=[KV(label=k, value=v) for k, v in pairs if v], stages=stages, summary=summary)

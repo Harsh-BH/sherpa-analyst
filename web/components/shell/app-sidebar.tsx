@@ -43,7 +43,10 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3">
         <div className="flex h-8 items-center gap-2 px-1.5 font-semibold">
-          <span aria-hidden className="size-5 shrink-0 rounded-[5px] bg-foreground" />
+          <span
+            aria-hidden
+            className="size-5 shrink-0 rounded-[6px] bg-linear-135 from-accent-blue to-[color-mix(in_oklab,var(--accent-blue),black_35%)] shadow-[inset_0_1px_0_rgb(255_255_255/0.25)]"
+          />
           <span className="group-data-[collapsible=icon]:hidden">Sherpa</span>
         </div>
         <Select value={persona ?? ""} onValueChange={setPersona}>
@@ -73,7 +76,8 @@ export function AppSidebar() {
                   asChild
                   isActive={pathname === href}
                   tooltip={label}
-                  className="text-muted-foreground data-active:text-foreground data-active:ring-1 data-active:ring-sidebar-border"
+                  // accent-tinted pill with a 2px left indicator; the background and colour transition
+                  className="relative text-muted-foreground transition-[width,height,padding,color,background-color] duration-200 ease-out before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent-blue before:opacity-0 before:transition-opacity data-active:bg-accent-blue/10 data-active:text-foreground data-active:before:opacity-100 data-active:hover:bg-accent-blue/15 data-active:[&_svg]:text-accent-blue"
                 >
                   <Link href={href}>
                     <Icon />

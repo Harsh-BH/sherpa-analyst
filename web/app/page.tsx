@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Chips } from "@/components/ask/chips";
+import { Overview } from "@/components/ask/overview";
 import { QuestionBar } from "@/components/ask/question-bar";
 import { Banner, BundleView } from "@/components/answer/answer-view";
 import { Trace } from "@/components/answer/trace";
@@ -41,6 +42,7 @@ function Center() {
             {metaError}. Personas and example questions did not load; Ask tries again.
           </Banner>
         )}
+        {run.status === "idle" && <Overview />}
         <Chips />
         {run.status !== "idle" && <Trace run={run} />}
         {run.status === "failed" && (

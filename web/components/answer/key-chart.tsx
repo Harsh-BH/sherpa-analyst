@@ -7,7 +7,7 @@ import { VegaChart } from "@/components/charts/vega-chart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { View } from "@/lib/api";
 
-const box = "grid min-w-0 gap-3 rounded-lg border bg-card p-3";
+const box = "grid min-w-0 gap-3 rounded-xl border bg-card p-3.5 shadow-sm";
 const note = "text-xs text-muted-foreground wrap-anywhere";
 
 /** The chart beside the claims: the mix/rate waterfall with its "Decompose by" picker, else the reconciliation

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Check, X } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
+import { ChartGrid } from "@/components/charts/chart-card";
 import { Workspace } from "@/components/shell/workspace";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getEval, type EvalResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -12,14 +14,14 @@ import { cn } from "@/lib/utils";
 type Ok = Extract<EvalResponse, { status: "ok" }>;
 type Case = Ok["cases"][number];
 
-/** Pass or fail as icon plus text, never colour alone. */
+/** Pass or fail as icon plus text in its status hue, never colour alone. */
 function Verdict({ pass }: { pass: boolean }) {
   const Icon = pass ? Check : X;
   return (
-    <span className="inline-flex items-center gap-1">
-      <Icon className="size-4" aria-hidden />
+    <Badge variant={pass ? "positive" : "negative"} data-testid="verdict" data-pass={pass}>
+      <Icon aria-hidden />
       {pass ? "Pass" : "Fail"}
-    </span>
+    </Badge>
   );
 }
 
@@ -38,7 +40,7 @@ function CaseDetail({ c }: { c: Case }) {
       </div>
       {rows.map(([name, pass, detail]) => (
         <div key={name} className="grid gap-1">
-          <h3 className="text-xs font-medium text-muted-foreground">{name}</h3>
+          <h3 className="section-label">{name}</h3>
           <Verdict pass={pass} />
           <p className="wrap-anywhere">{detail ?? "No detail recorded."}</p>
         </div>
@@ -61,7 +63,7 @@ export function EvalView() {
 
   const center = (
     <div className="mx-auto grid w-full max-w-[960px] gap-3.5 px-4 pt-4 pb-16 md:px-6">
-      <h1 className="text-lg font-semibold">Eval</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Eval</h1>
       {error && <Banner tone="error" role="alert">{error}</Banner>}
       {!data && !error && <p className="text-sm text-muted-foreground">Loading eval results…</p>}
       {data?.status === "missing" && (
@@ -77,17 +79,26 @@ export function EvalView() {
             Generated {ok.generated_at ?? "n/a"} · data {ok.data_version ?? "n/a"}
           </p>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t) => (
-              <div key={t.label} data-testid="eval-tile" className="min-w-0 rounded-lg border bg-card p-3">
-                <div className="text-xs text-muted-foreground">{t.label}</div>
-                <div className="mt-1 text-xl font-semibold tabular-nums">{t.sherpa}</div>
+            {ok.tiles.map((t, i) => (
+              <div
+                key={t.label}
+                data-testid="eval-tile"
+                style={{ "--i": i } as CSSProperties}
+                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+              >
+                <div className="section-label">{t.label}</div>
+                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
                 <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
               </div>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-lg border bg-card">
-            <Table data-testid="eval-cases" className="text-[12.5px]">
-              <TableHeader>
+          <ChartGrid charts={ok.charts} from={ok.tiles.length} />
+          <div
+            style={{ "--i": ok.tiles.length + ok.charts.length } as CSSProperties}
+            className="rise overflow-hidden rounded-xl border bg-card shadow-sm"
+          >
+            <Table data-testid="eval-cases" className="text-[12.5px]" containerClassName="max-h-[70vh] overflow-auto">
+              <TableHeader className="sticky top-0 z-[1] bg-card/80 backdrop-blur-md">
                 <TableRow>
                   {["Case", "Kind", "Question", "Sherpa", "Baseline"].map((h) => (
                     <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
@@ -102,11 +113,11 @@ export function EvalView() {
                     aria-selected={sel === i}
                     onClick={() => setSel(i)}
                     onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
-                    className={cn("cursor-pointer", sel === i && "bg-muted")}
+                    className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                   >
                     <TableCell>{c.id}</TableCell>
                     <TableCell>{c.kind}</TableCell>
-                    <TableCell className="min-w-64 whitespace-normal wrap-break-word">{c.question}</TableCell>
+                    <TableCell className="min-w-48 whitespace-normal wrap-break-word">{c.question}</TableCell>
                     <TableCell><Verdict pass={c.sherpa_pass} /></TableCell>
                     <TableCell><Verdict pass={c.baseline_pass} /></TableCell>
                   </TableRow>

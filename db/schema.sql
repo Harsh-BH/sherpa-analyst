@@ -164,5 +164,7 @@ CREATE TABLE IF NOT EXISTS app.runs (
     data_version  text,
     timings_ms    jsonb,
     llm_usage     jsonb,
-    error         text
+    error         text,
+    source        text NOT NULL DEFAULT 'app'   -- app | test | eval (SHERPA_RUN_SOURCE); the Runs page reads 'app' only
 );
+ALTER TABLE app.runs ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'app';   -- databases created before it

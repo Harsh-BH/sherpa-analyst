@@ -31,7 +31,7 @@ export function Workspace({ center, rail, railTitle, railOpen, onRailOpenChange 
     return (
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel defaultSize="64%" className="min-w-0">
-          <div className="h-full overflow-y-auto">{center}</div>
+          <div className="bg-tint h-full overflow-y-auto">{center}</div>
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel defaultSize="36%" minSize="28%" className="min-w-0">
@@ -51,7 +51,7 @@ export function Workspace({ center, rail, railTitle, railOpen, onRailOpenChange 
           Inspector
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{center}</div>
+      <div className="bg-tint min-h-0 flex-1 overflow-y-auto">{center}</div>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"

@@ -15,10 +15,10 @@ import pandas as pd
 
 from . import charts, compiler, db, dq, drivers, llm, narrate, planner, reconcile, runs, triage
 from .config import AMBIGUITY_THRESHOLD, MIN_RATE_DELTA, load_access, load_catalog
+from .contracts import CATALOG_FORMAT as _FMT
 from .contracts import (AnalysisPlan, AnswerBundle, Clarification, ClarifyOption, Evidence, Filter,
                         QueryRejected, Refusal, TimeWindow, ValueFormat)
 
-_FMT: dict[str, ValueFormat] = {"percent": "pct", "inr": "inr", "count": "int"}
 _CHANGE_INTENTS = {"explain_change", "compare_periods"}
 
 
@@ -470,7 +470,7 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
         if plan.route == "sql" or (plan.metric and load_catalog().metric(plan.metric).table == "transactions") or plan.intent in ("data_quality", "reconcile"):
             stage("dq")
             bundle.dq = _dq_evidence(r, plan, filters, as_of)
-        t = r.tick("dq", t)
+            t = r.tick("dq", t)   # timed only when it ran, so the footprint's steps are the stages the trace showed
 
         stage("narrate")
         try:
@@ -479,9 +479,10 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
         except llm.LLMUnavailable:
             narr = narrate.template_narrative(plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
             r.usage["narrator"] = {"backend": "template"}
+        t = r.tick("narrate", t)
         stage("check")
         bundle.headline, bundle.claims = narrate.check_claims(narr, r.evidence)
-        t = r.tick("narrate", t)
+        t = r.tick("check", t)
 
         bundle.confidence, bundle.confidence_reasons = narrate.confidence(
             plan, plan.route, r.evidence, bundle.claims, bundle.dq, bundle.drivers,

@@ -14,7 +14,7 @@ import { useSherpa } from "@/lib/store";
 
 type Plan = NonNullable<AnswerBundle["plan"]>;
 
-const caption = "text-xs font-medium text-muted-foreground";
+const caption = "section-label";
 const empty = "px-4 py-3 text-[13px] text-muted-foreground";
 
 /** The plan's fields that are set, as label and value pairs. Every value is the plan's own text. */
@@ -53,7 +53,7 @@ function PlanTab({ plan }: { plan: AnswerBundle["plan"] }) {
       )}
       <Collapsible>
         <CollapsibleTrigger className="group flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
-          <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" />
+          <ChevronRight className="size-4 transition-transform duration-200 ease-out group-data-[state=open]:rotate-90" />
           Raw JSON
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -73,7 +73,7 @@ export function AnswerRail({ bundle, view }: { bundle: AnswerBundle; view: View 
     <Tabs value={railTab} onValueChange={setRailTab} className="gap-0">
       <TabsList
         variant="line"
-        className="sticky top-0 z-10 w-full justify-start rounded-none border-b bg-card px-2 group-data-horizontal/tabs:h-10"
+        className="sticky top-0 z-10 w-full justify-start rounded-none border-b bg-card/80 px-2 backdrop-blur-md group-data-horizontal/tabs:h-10"
       >
         <TabsTrigger value="plan" className="flex-none px-2">
           Plan

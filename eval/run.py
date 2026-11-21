@@ -198,6 +198,7 @@ def _cell(key: str, v) -> str:
 
 # ---------------------------------------------------------------- CLI
 def main(argv: list[str] | None = None) -> None:
+    os.environ.setdefault("SHERPA_RUN_SOURCE", "eval")   # runs.save_run labels these, the Runs page skips them
     ap = argparse.ArgumentParser(prog="python -m eval.run", description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, help="one seed, against SHERPA_DB_NAME (default: every seed in SEED_DBS)")
     ap.add_argument("--systems", default=",".join(SYSTEMS))

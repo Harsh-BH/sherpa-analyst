@@ -10,6 +10,13 @@ export type ExploreForm = S["ExploreForm"];
 export type ExplorePlan = S["ExplorePlan"];
 export type EvalResponse = S["EvalOk"] | S["EvalMissing"] | S["EvalError"];
 export type RunsResponse = S["RunsOk"] | S["RunsUnavailable"];
+/** GET /api/overview?persona=<key>: `available: false` (with a reason) means hide the panel. */
+export type OverviewResponse = S["OverviewOk"] | S["OverviewUnavailable"];
+export type Kpi = S["Kpi"];
+/** A dashboard chart: draw `spec` with VegaChart, use `summary` as its aria-label. */
+export type ChartView = S["ChartView"];
+/** A trace stage: `fraction` is its share of the total, a bar width only (null without a total). */
+export type StageTime = S["StageTime"];
 /** `elapsed` is `t_ms` formatted by the API (fmt_ms): the trace shows it as-is. */
 export type Stage = { name: string; t_ms: number; elapsed: string };
 
@@ -34,6 +41,10 @@ const getJSON = async <T>(path: string): Promise<T> => (await request(path)).jso
 export const getMeta = () => getJSON<Meta>("/api/meta");
 export const getEval = () => getJSON<EvalResponse>("/api/eval");
 export const getRuns = () => getJSON<RunsResponse>("/api/runs");
+export const getOverview = (persona: string, signal?: AbortSignal) =>
+  request(`/api/overview?persona=${encodeURIComponent(persona)}`, { signal }).then(
+    (r) => r.json() as Promise<OverviewResponse>,
+  );
 
 export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   const res = await request("/api/explore/plan", {

@@ -6,16 +6,21 @@ import queue
 import threading
 import time
 import uuid
+from collections import Counter
 from datetime import datetime
+from statistics import mean
 from typing import Any, Iterator, Literal, get_args
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
-from app import backend
+from app import backend, overview as home
 from app.explore import ExploreForm, build_explore_plan
-from app.view import KV, STAGES, View, build_view, fmt_ms
+from app.overview import OverviewOk, OverviewUnavailable
+from app.view import KV, STAGE_LABELS, STAGES, ChartView, View, build_view, fmt_ms
+from sherpa import charts
 from sherpa.config import load_access, load_catalog, settings
 from sherpa.contracts import AnalysisPlan, AnswerBundle, Intent, WindowPreset
 
@@ -31,6 +36,9 @@ EVAL_METRICS = [  # key, label, format
     ("refusals", "Correct refusals", "pct"), ("clarifications", "Correct clarifications", "pct"),
     ("unsupported_numbers", "Unsupported numbers", "int"), ("p50_ms", "p50 latency", "ms"), ("cost_usd", "LLM cost", "usd"),
 ]
+SYSTEMS = {"Sherpa": charts.MIX, "Baseline": charts.GREY}   # eval system label -> chart colour
+PCT_AXIS = {"title": None, "format": ".0%", "values": [0, 0.25, 0.5, 0.75, 1]}
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def _fmt(v: Any, fmt: str) -> str:
@@ -41,6 +49,21 @@ def _fmt(v: Any, fmt: str) -> str:
 
 def _words(s: str) -> str:
     return s.replace("_", " ")
+
+
+def _kind(s: str) -> str:
+    """Eval case kind as a label: 'unsafe_sql' -> 'Unsafe SQL' (str.capitalize would lowercase the acronym)."""
+    w = " ".join("SQL" if x == "sql" else x for x in s.split("_"))
+    return w[:1].upper() + w[1:]
+
+
+def _when(iso: Any) -> str | None:
+    """An ISO timestamp from the eval results as IST wall-clock text; anything unparseable passes through."""
+    try:
+        t = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return iso
+    return f"{_local(t):%d %b %Y %H:%M} IST" if t.tzinfo else f"{t:%d %b %Y %H:%M}"
 
 
 # ------------------------------------------------------------------ models
@@ -156,6 +179,7 @@ class EvalOk(BaseModel):
     data_version: str | None
     tiles: list[EvalTile]
     cases: list[EvalCase]
+    charts: list[ChartView]
 
 
 class EvalMissing(BaseModel):
@@ -185,6 +209,7 @@ class RunsOk(BaseModel):
     status: Literal["ok"] = "ok"
     tiles: list[KV]
     recent: list[RunRow]
+    charts: list[ChartView]   # empty when there are no app runs
 
 
 class RunsUnavailable(BaseModel):
@@ -278,7 +303,7 @@ def ask(req: AskRequest) -> StreamingResponse:
     fixture = None
     if req.fixture is not None:
         path = backend.FIXTURES / f"{req.fixture}.json"
-        if req.fixture == "eval_latest" or "/" in req.fixture or not path.is_file():
+        if req.fixture in ("eval_latest", "overview") or "/" in req.fixture or not path.is_file():
             raise HTTPException(422, f"unknown fixture {req.fixture!r}")
         if backend.pipeline_status()[0] is None:   # honoured only in fixture mode
             fixture = req.fixture
@@ -305,23 +330,111 @@ def eval_results() -> EvalOk | EvalMissing | EvalError:
         systems, cases = data["systems"], data.get("cases", [])
         sherpa, base = systems.get("sherpa", {}), systems.get("baseline", {})
         return EvalOk(
-            fixture=fixture, generated_at=data.get("generated_at"), data_version=data.get("data_version"),
+            fixture=fixture, generated_at=_when(data.get("generated_at")), data_version=data.get("data_version"),
             tiles=[EvalTile(label=label, sherpa=_fmt(sherpa.get(k), f), baseline=_fmt(base.get(k), f))
                    for k, label, f in EVAL_METRICS],
             cases=[EvalCase(id=c.get("id"), kind=c.get("kind"), question=c.get("question"),
                             sherpa_pass=bool(c.get("sherpa", {}).get("pass")), sherpa_detail=c.get("sherpa", {}).get("detail"),
                             baseline_pass=bool(c.get("baseline", {}).get("pass")),
-                            baseline_detail=c.get("baseline", {}).get("detail")) for c in cases])
+                            baseline_detail=c.get("baseline", {}).get("detail")) for c in cases],
+            charts=_eval_charts(sherpa, base, cases))
     except FileNotFoundError:
         return EvalMissing(path=str(path.relative_to(backend.ROOT)) if path.is_relative_to(backend.ROOT) else str(path))
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         return EvalError(message=f"Could not read {path.name}: {type(e).__name__}: {e}")
 
 
+def _vs_summary(title: str, rows: list[dict], y: str) -> str:
+    """'<title>: <y> <sherpa> vs <baseline>, ...' from grouped-bar rows."""
+    by: dict[str, dict[str, str]] = {}
+    for r in rows:
+        by.setdefault(r[y], {})[r["system"]] = r["_label"]
+    return f"{title}: " + ", ".join(f"{k} {v.get('Sherpa', 'n/a')} vs {v.get('Baseline', 'n/a')}" for k, v in by.items()) + "."
+
+
+def _eval_charts(sherpa: dict, base: dict, cases: list[dict]) -> list[ChartView]:
+    systems = {"Sherpa": sherpa, "Baseline": base}
+    rates = [{"metric": label, "system": s, "rate": v, "_label": _fmt(v, "pct")}
+             for k, label, _ in EVAL_METRICS[:4] for s in SYSTEMS
+             if isinstance(v := systems[s].get(k), int | float) and not isinstance(v, bool)]
+    kinds = Counter(c.get("kind") or "other" for c in cases)
+    by_kind = []
+    for kind, n in kinds.most_common():
+        for s in SYSTEMS:
+            graded = [c[s.lower()] for c in cases if (c.get("kind") or "other") == kind and isinstance(c.get(s.lower()), dict)]
+            if graded:
+                r = sum(bool(g.get("pass")) for g in graded) / len(graded)
+                by_kind.append({"kind": f"{_kind(kind)} (n={n})", "system": s, "rate": r, "_label": _fmt(r, "pct")})
+    out = []
+    for key, title, rows, y in (("eval-vs-baseline", "Sherpa vs baseline", rates, "metric"),
+                                ("eval-by-kind", "Pass rate by question type", by_kind, "kind")):
+        if rows:
+            out.append(ChartView(key=key, title=title, summary=_vs_summary(title, rows, y),
+                                 spec=charts.hbars(rows, y, "rate", title, PCT_AXIS, SYSTEMS, group="system", x_max=1)))
+    return out
+
+
+def _local(t: Any) -> datetime | Any:
+    return t.astimezone(IST) if isinstance(t, datetime) and t.tzinfo else t
+
+
+def _runs_charts(series: list[dict]) -> list[ChartView]:
+    """The Runs page charts from run_series() (app runs, oldest first); none when there are no runs."""
+    if not series:
+        return []
+    rows = []
+    for r in series:
+        t, cost = r.get("timings_ms") or {}, r.get("cost_usd")
+        rows.append({"t": _local(r["asked_at"]).replace(tzinfo=None).isoformat(timespec="seconds"),
+                     "status": str(r["status"]), "total": t.get("total"), "timings": t,
+                     "cost": cost if isinstance(cost, int | float) else None})
+    span = _local(series[-1]["asked_at"]) - _local(series[0]["asked_at"])
+    hourly = span.total_seconds() <= 2 * 86400
+    x_format = "%d %b %H:%M" if hourly else "%d %b"
+    by_status = Counter(r["status"] for r in rows)
+    out = [ChartView(
+        key="runs-over-time", title="Runs over time",
+        summary=f"{len(rows)} runs: " + ", ".join(f"{by_status[s]} {s}" for s in charts.STATUS)
+                + f", {'by hour' if hourly else 'by day'}.",
+        spec=charts.status_bars([{"t": r["t"], "status": r["status"]} for r in rows], "t",
+                                "yearmonthdatehours" if hourly else "yearmonthdate", "Runs over time"))]
+    means = [(STAGE_LABELS[s], mean(v)) for s in STAGES
+             if (v := [r["timings"][s] for r in rows if isinstance(r["timings"].get(s), int | float)])]
+    if means:
+        title = "Where the time goes"
+        out.append(ChartView(
+            key="stage-time", title=title,
+            summary=f"{title}, mean per run: " + ", ".join(f"{s} {fmt_ms(ms)}" for s, ms in means) + ".",
+            spec=charts.hbars([{"stage": s, "ms": ms, "_label": fmt_ms(ms)} for s, ms in means], "stage", "ms", title,
+                              {"title": "Mean time per run", "tickCount": 4, "labelOverlap": "greedy", "labelExpr": "format(datum.value / 1000, '.1~f') + ' s'"},
+                              {"Mean": charts.MIX})))
+    timed = [r for r in rows if isinstance(r["total"], int | float)]
+    if timed:
+        fast, slow = min(r["total"] for r in timed), max(r["total"] for r in timed)
+        out.append(ChartView(
+            key="latency", title="Latency by run",
+            summary=f"Latency by run: {len(timed)} runs, fastest {fmt_ms(fast)}, slowest {fmt_ms(slow)}.",
+            spec=charts.status_points([{"t": r["t"], "status": r["status"], "seconds": r["total"] / 1000,
+                                        "_label": fmt_ms(r["total"])} for r in timed], "t", "seconds", "Latency by run",
+                                      {"title": "Total time (s)"}, x_format)))
+    spend, cum = [], 0.0
+    for r in rows:
+        if r["cost"] is not None:
+            cum += r["cost"]
+            spend.append({"t": r["t"], "series": "LLM spend", "usd": cum, "_label": f"${cum:.4f}"})
+    if spend:
+        out.append(ChartView(
+            key="llm-spend", title="LLM spend",
+            summary=f"LLM spend: {spend[-1]['_label']} in total over {len(spend)} runs with a recorded cost.",
+            spec=charts.lines(spend, "t", "usd", "LLM spend", {"title": "USD, cumulative", "format": "$.3~f"},
+                              {"LLM spend": charts.MIX}, zero=True, x_format=x_format)))
+    return out
+
+
 def _run_row(r: dict) -> RunRow:
     t, u = r.get("timings_ms") or {}, r.get("llm_usage") or {}
     cost = u.get("cost_usd")
-    asked = r.get("asked_at")
+    asked = _local(r.get("asked_at"))   # IST, like the charts
     footprint = [KV(label="LLM", value=str(u.get("backend") or "n/a"))]
     footprint += [KV(label=s, value=fmt_ms(t[s])) for s in STAGES if s in t]
     return RunRow(run_id=str(r.get("run_id")), asked_at=f"{asked:%d %b %Y %H:%M}" if isinstance(asked, datetime) else str(asked),
@@ -334,7 +447,7 @@ def _run_row(r: dict) -> RunRow:
 def runs() -> RunsOk | RunsUnavailable:
     try:
         from sherpa import runs as run_log
-        stats, recent = run_log.run_stats(), run_log.recent_runs(50)
+        stats, recent, series = run_log.run_stats(), run_log.recent_runs(50), run_log.run_series()
     except Exception as e:  # noqa: BLE001 - no DB / no runs module: say so instead of failing the page
         detail = str(e).splitlines()[0] if str(e) else "no detail"
         return RunsUnavailable(message=f"Run history is unavailable ({type(e).__name__}: {detail}). "
@@ -343,4 +456,20 @@ def runs() -> RunsOk | RunsUnavailable:
              ("LLM cost", "llm_cost_usd", "usd"), ("Refusal rate", "refusal_rate", "pct"),
              ("Clarify rate", "clarify_rate", "pct"), ("Cache hit rate", "cache_hit_rate", "pct")]
     return RunsOk(tiles=[KV(label=label, value=_fmt(stats.get(k), f)) for label, k, f in tiles],
-                  recent=[_run_row(r) for r in recent])
+                  recent=[_run_row(r) for r in recent], charts=_runs_charts(series))
+
+
+@app.get("/api/overview", responses={422: {"description": "Unknown persona"}})
+def overview(persona: str = DEFAULT_PERSONA) -> OverviewOk | OverviewUnavailable:
+    """Home: last 30 days vs the 30 before, governed queries as the persona. Never fails: unavailable says why."""
+    if persona not in load_access().personas:
+        raise HTTPException(422, f"unknown persona {persona!r}")
+    try:
+        if backend.pipeline_status()[0] is None:   # fixture mode: captured from the real endpoint for one persona
+            o = OverviewOk.model_validate_json((backend.FIXTURES / "overview.json").read_text())
+            # another persona's scope differs: hide the panel rather than show the fixture persona's numbers
+            return o if o.persona == persona else OverviewUnavailable(reason=f"fixture captured for {o.persona} only")
+        return home.build(persona)
+    except Exception as e:  # noqa: BLE001 - no DB, no seed, a guard or cost rejection: the UI hides the panel
+        detail = str(e).splitlines()[0] if str(e) else "no detail"
+        return OverviewUnavailable(reason=f"{type(e).__name__}: {detail}")
