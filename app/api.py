@@ -22,6 +22,9 @@ from sherpa.contracts import AnalysisPlan, AnswerBundle, Intent, WindowPreset
 app = FastAPI(title="Sherpa API")
 
 DEFAULT_PERSONA = "head"
+# The Next.js rewrite proxy destroys a socket idle for 30 s (experimental.proxyTimeout), and one stage can run
+# minutes (llm.TIMEOUT_S = 180 per call, plus a repair call): an SSE comment this often keeps the stream alive.
+KEEPALIVE_S = 15
 REFUSAL_DEMO = {"question": "Compare North vs South success rate", "persona": "rm_south"}
 EVAL_METRICS = [  # key, label, format
     ("result_equivalence", "Result equivalence", "pct"), ("planted_causes", "Planted causes found", "pct"),
@@ -248,7 +251,11 @@ def _stream(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None) -> 
     q: queue.Queue = queue.Queue()
     threading.Thread(target=_run, args=(req, plan, fixture, q, time.perf_counter()), daemon=True).start()
     while True:
-        kind, payload = q.get()
+        try:
+            kind, payload = q.get(timeout=KEEPALIVE_S)
+        except queue.Empty:
+            yield ": keepalive\n\n"   # the client parser skips blocks with no event
+            continue
         if kind == "stage":
             yield _sse("stage", json.dumps(payload))
             continue

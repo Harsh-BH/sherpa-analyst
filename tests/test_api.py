@@ -19,6 +19,8 @@ def fixture_mode(monkeypatch):
 def sse(resp) -> list[tuple[str, dict]]:
     events = []
     for block in resp.text.strip().split("\n\n"):
+        if block.startswith(":"):   # SSE comment (keep-alive)
+            continue
         name, data = block.split("\n", 1)
         events.append((name.removeprefix("event: "), json.loads(data.removeprefix("data: "))))
     return events
@@ -105,6 +107,22 @@ def test_ask_unexpected_error_keeps_a_run_id(monkeypatch):
     monkeypatch.setattr(backend, "answer", lambda *a, **k: 1 / 0)
     b = sse(ask())[0][1]["bundle"]
     assert b["status"] == "error" and b["run_id"].startswith("ui-") and "ZeroDivisionError" in b["error"]
+
+
+def test_ask_keeps_a_slow_stage_alive(monkeypatch):
+    """A stage longer than a proxy's idle timeout (Next.js: 30 s) must not leave the stream silent."""
+    import time
+
+    from app import api
+    monkeypatch.setattr(api, "KEEPALIVE_S", 0.05)
+
+    def slow(q, p, plan=None, on_stage=None):
+        time.sleep(0.3)
+        return backend.load_fixture("explain_change")
+    monkeypatch.setattr(backend, "answer", slow)
+    r = ask()
+    assert r.text.startswith(": keepalive\n\n")
+    assert [n for n, _ in sse(r)] == ["result"]
 
 
 def test_explore_plan_builds_question_and_plan():

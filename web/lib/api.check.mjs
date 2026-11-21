@@ -15,7 +15,7 @@ const run = async (respond) => {
 
 // events split across chunks, with CRLF line ends
 const ok = await run(() =>
-  stream('event: stage\ndata: {"name":"plan","t_ms":3}\n', "\nevent: result\r\ndata: ", '{"bundle":1,"view":2}\r\n\r\n'),
+  stream(': keepalive\n\nevent: stage\ndata: {"name":"plan","t_ms":3}\n', "\n: keepalive\n\nevent: result\r\ndata: ", '{"bundle":1,"view":2}\r\n\r\n'),
 );
 assert.deepEqual(ok, { stages: [{ name: "plan", t_ms: 3 }], results: [{ bundle: 1, view: 2 }] });
 
