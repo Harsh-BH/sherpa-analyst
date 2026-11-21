@@ -7,7 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { View } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Rows = Omit<NonNullable<View["evidence"][number]["table"]>, "key_columns"> & { key_columns?: string[] };
+type Rows = Omit<NonNullable<View["evidence"][number]["table"]>, "key_columns" | "more_label"> & {
+  key_columns?: string[];
+  more_label?: string | null;
+};
 type KV = View["footprint"]["items"][number];
 
 // "More columns" is one choice for every table, kept for the page's session (module state, not per answer).
@@ -29,12 +32,13 @@ const sticky = "sticky left-0 z-[1] bg-card [tr:hover>&]:bg-[color-mix(in_oklch,
 
 /** A view table, every cell exactly as Python formatted it. A wide table scrolls inside its own box.
  * Values stay on one line ("-0.80 pp" never splits); only long text (over 40 characters: notes, names) wraps,
- * in a column at least 16rem wide. With `key_columns`, only those show until "More columns" is pressed. */
+ * in a column at least 16rem wide. With `more_label` (Python's "More columns (7)"), only `key_columns` show until it is
+ * pressed. */
 export function DataTable({ table }: { table: Rows }) {
   const all = useSyncExternalStore(subscribe, () => allColumns, () => false);
   const key = table.key_columns ?? [];
-  const hidden = key.length ? table.columns.length - table.columns.filter((c) => key.includes(c)).length : 0;
-  const shown = table.columns.flatMap((c, j) => (all || !hidden || key.includes(c) ? [j] : []));
+  const more = table.more_label;
+  const shown = table.columns.flatMap((c, j) => (all || !more || key.includes(c) ? [j] : []));
   return (
     <div className="grid min-w-0">
       <Table className="text-[12.5px]">
@@ -66,7 +70,7 @@ export function DataTable({ table }: { table: Rows }) {
           ))}
         </TableBody>
       </Table>
-      {hidden > 0 && (
+      {more && (
         <Button
           variant="ghost"
           size="xs"
@@ -75,7 +79,7 @@ export function DataTable({ table }: { table: Rows }) {
           className="justify-self-start text-muted-foreground"
           onClick={() => setAllColumns(!all)}
         >
-          {all ? "Fewer columns" : `More columns (${hidden})`}
+          {all ? "Fewer columns" : more}
         </Button>
       )}
     </div>
