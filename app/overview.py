@@ -148,6 +148,8 @@ def _trend(window: TimeWindow, baseline: TimeWindow, n: dict) -> ChartView:
                         tooltip=[{"field": "series", "title": "Period"},
                                  {"field": "date", "type": "temporal", "title": "Date", "format": "%d %b %Y"},
                                  {"field": "_label", "title": "Success rate"}])
+    # One label a week: Vega's width-based tick count left 8 dates on a 360 px card at 768 px wide (they overlapped).
+    spec["encoding"]["x"]["axis"]["tickCount"] = {"interval": "week"}
     # Vega picks a line's first point for a click anywhere on the line, so the line carries no question;
     # the current period's points, drawn over it, do (`_ask`, pointer cursor), unusual days larger and red.
     spec["layer"] = [
