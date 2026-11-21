@@ -77,10 +77,17 @@ export async function ask(
         if (line.startsWith("event:")) event = line.slice(6).trim();
         else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
-      if (event === "stage") on.stage(JSON.parse(data.join("\n")));
-      else if (event === "result") {
+      if (event !== "stage" && event !== "result") continue;
+      let payload;
+      try {
+        payload = JSON.parse(data.join("\n"));
+      } catch {
+        throw new Error("The answer stream was malformed");
+      }
+      if (event === "stage") on.stage(payload);
+      else {
         gotResult = true;
-        on.result(JSON.parse(data.join("\n")));
+        on.result(payload);
       }
     }
   }

@@ -22,6 +22,9 @@ assert.deepEqual(ok, { stages: [{ name: "plan", t_ms: 3 }], results: [{ bundle: 
 await assert.rejects(run(() => stream('event: stage\ndata: {"name":"plan","t_ms":3}\n\n')), {
   message: "The answer stream ended early",
 });
+await assert.rejects(run(() => stream("event: result\ndata: {not json\n\n")), {
+  message: "The answer stream was malformed",
+});
 await assert.rejects(run(() => new Response("boom", { status: 500 })), { message: "Sherpa API unreachable: HTTP 500 boom" });
 await assert.rejects(
   run(() => Promise.reject(new TypeError("fetch failed"))),

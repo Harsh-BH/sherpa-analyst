@@ -1,0 +1,61 @@
+"use client";
+
+import { ChevronRight } from "lucide-react";
+
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useSherpa } from "@/lib/store";
+
+type Item = { question: string; persona: string | null };
+
+function Row({ label, testId, items }: { label: string; testId: string; items: Item[] }) {
+  const { meta, ask, setPersona } = useSherpa();
+  const personaLabel = (key: string) => meta?.personas.find((p) => p.key === key)?.label ?? key;
+  return (
+    <div className="grid gap-1.5">
+      <h2 className="text-xs font-medium text-muted-foreground">{label}</h2>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(({ question, persona }) => (
+          <button
+            key={question}
+            type="button"
+            data-testid={testId}
+            className="max-w-full rounded-full border bg-card px-2.5 py-1 text-left text-[13px] wrap-anywhere text-foreground transition-colors hover:border-input focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            onClick={() => {
+              if (persona) setPersona(persona); // the refusal demo is asked as the South manager
+              void ask(question, { persona: persona ?? undefined });
+            }}
+          >
+            {question}
+            {persona && <span className="text-muted-foreground"> · as {personaLabel(persona)}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Demo and verified questions from /api/meta. Open on the empty page, folded away once there is an answer. */
+export function Chips() {
+  const { meta, run } = useSherpa();
+  if (!meta) return null;
+  const rows = (
+    <div className="grid gap-3">
+      <Row label="Demo questions" testId="demo-chip" items={meta.demo} />
+      <Row
+        label="Verified questions (catalog)"
+        testId="verified-chip"
+        items={meta.verified.map((question) => ({ question, persona: null }))}
+      />
+    </div>
+  );
+  if (run.status === "idle") return rows;
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className="group flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
+        <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" />
+        Example questions
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2">{rows}</CollapsibleContent>
+    </Collapsible>
+  );
+}

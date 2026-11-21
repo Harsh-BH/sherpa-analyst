@@ -28,7 +28,7 @@ const NAV = [
 ];
 
 export function AppSidebar() {
-  const { meta, persona, setPersona, run } = useSherpa();
+  const { meta, metaError, persona, setPersona, run } = useSherpa();
   const pathname = usePathname();
   const bundle = run.result?.bundle;
   const backend = bundle?.llm_usage.backend;
@@ -53,7 +53,7 @@ export function AppSidebar() {
             size="sm"
             className="w-full bg-card group-data-[collapsible=icon]:hidden"
           >
-            <SelectValue placeholder="Loading personas" />
+            <SelectValue placeholder={metaError ? "Personas unavailable" : "Loading personas"} />
           </SelectTrigger>
           <SelectContent position="popper">
             {meta?.personas.map((p) => (
