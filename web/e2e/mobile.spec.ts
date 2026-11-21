@@ -41,8 +41,14 @@ test("no horizontal page scroll on /, /eval and /runs at 390 and 768 px", async 
   }
 });
 
-test("phone: an answer fits the width too", async ({ page }) => {
+/** Open Ask and wait for the overview (meta and the persona have loaded), so typing lands after hydration. */
+async function home(page: Page) {
   await page.goto("/");
+  await expect(page.getByTestId("kpi-card").first()).toBeVisible();
+}
+
+test("phone: an answer fits the width too", async ({ page }) => {
+  await home(page);
   await page.getByTestId("question").fill(EXPLAIN);
   await page.getByTestId("ask-button").click();
   await expect(page.getByTestId("key-chart").locator("svg.marks")).toBeVisible();
@@ -114,7 +120,7 @@ test("phone: a runs row opens the rail sheet", async ({ page }) => {
 });
 
 test("phone: an evidence chip opens the bottom sheet at its entry", async ({ page }) => {
-  await page.goto("/");
+  await home(page);
   await page.getByTestId("question").fill(EXPLAIN);
   await page.getByTestId("ask-button").click();
   await page.getByTestId("chip-E2").first().click();
