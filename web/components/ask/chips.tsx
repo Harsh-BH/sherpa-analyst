@@ -8,6 +8,10 @@ import { useSherpa } from "@/lib/store";
 
 type Item = { question: string; persona: string | null };
 
+/** A question chip (also the answer's "Ask next" chips); `--i` staggers its fade-in. */
+export const chip =
+  "max-w-full animate-in fade-in-0 rounded-full border bg-card px-2.5 py-1 text-left text-[13px] wrap-anywhere text-foreground shadow-xs transition-[color,border-color,box-shadow,translate,scale] duration-150 ease-out animation-duration-300 fill-mode-backwards [--tw-animation-delay:calc(var(--i)*30ms)] hover:-translate-y-px hover:border-accent-blue/60 hover:shadow-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.98]";
+
 function Row({ label, testId, items }: { label: string; testId: string; items: Item[] }) {
   const { meta, ask, setPersona } = useSherpa();
   const personaLabel = (key: string) => meta?.personas.find((p) => p.key === key)?.label ?? key;
@@ -21,7 +25,7 @@ function Row({ label, testId, items }: { label: string; testId: string; items: I
             type="button"
             data-testid={testId}
             style={{ "--i": i } as CSSProperties}
-            className="max-w-full animate-in fade-in-0 rounded-full border bg-card px-2.5 py-1 text-left text-[13px] wrap-anywhere text-foreground shadow-xs transition-[color,border-color,box-shadow,translate,scale] duration-150 ease-out animation-duration-300 fill-mode-backwards [--tw-animation-delay:calc(var(--i)*30ms)] hover:-translate-y-px hover:border-accent-blue/60 hover:shadow-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none active:scale-[0.98]"
+            className={chip}
             onClick={() => {
               if (persona) setPersona(persona); // the refusal demo is asked as the South manager
               void ask(question, { persona: persona ?? undefined });

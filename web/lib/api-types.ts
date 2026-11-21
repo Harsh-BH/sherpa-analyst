@@ -703,6 +703,14 @@ export interface components {
             /** Values */
             values: string[];
         };
+        /** FollowUp */
+        FollowUp: {
+            /** Label */
+            label: string;
+            /** Question */
+            question: string;
+            plan: components["schemas"]["AnalysisPlan"];
+        };
         /** Footprint */
         Footprint: {
             /** Items */
@@ -716,6 +724,21 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HeadlinePart */
+        HeadlinePart: {
+            /** Text */
+            text: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "value" | "up" | "down";
+            /**
+             * Tone
+             * @enum {string}
+             */
+            tone: "positive" | "negative" | "neutral";
         };
         /** Health */
         Health: {
@@ -1004,6 +1027,11 @@ export interface components {
             columns: string[];
             /** Rows */
             rows: string[][];
+            /**
+             * Key Columns
+             * @default []
+             */
+            key_columns: string[];
         };
         /** TimeWindow */
         TimeWindow: {
@@ -1045,6 +1073,21 @@ export interface components {
             footprint: components["schemas"]["Footprint"];
             /** As Of */
             as_of: string | null;
+            /**
+             * Follow Ups
+             * @default []
+             */
+            follow_ups: components["schemas"]["FollowUp"][];
+            /**
+             * Headline Parts
+             * @default []
+             */
+            headline_parts: components["schemas"]["HeadlinePart"][];
+            /**
+             * Markdown
+             * @default
+             */
+            markdown: string;
         };
     };
     responses: never;
