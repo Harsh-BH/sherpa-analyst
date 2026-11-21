@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { AppSidebar } from "@/components/shell/app-sidebar";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { PaletteProvider } from "@/components/shell/command-palette";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SherpaProvider } from "@/lib/store";
 import { THEME_SCRIPT } from "@/lib/theme";
@@ -27,14 +28,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SherpaProvider>
           <TooltipProvider>
             <SidebarProvider>
-              <AppSidebar />
-              <SidebarInset className="h-svh min-w-0 overflow-hidden">
-                <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
-                  <SidebarTrigger />
-                  <span className="font-semibold">Sherpa</span>
-                </header>
-                {children}
-              </SidebarInset>
+              <PaletteProvider>
+                <AppSidebar />
+                {/* the compact top bar on phones (menu, palette, Inspector) is Workspace's, so pages own it */}
+                <SidebarInset className="h-svh min-w-0 overflow-hidden">{children}</SidebarInset>
+              </PaletteProvider>
             </SidebarProvider>
           </TooltipProvider>
         </SherpaProvider>

@@ -224,4 +224,22 @@
   body {
     @apply bg-background text-foreground tabular-nums;
   }
+  /* Phones and touch screens (spec 12): every control is at least a 40 px tap target. Base layer, so a component
+     can still opt out with a min-h utility. */
+  @media (max-width: 767px), (pointer: coarse) {
+    button,
+    [role="tab"],
+    [role="option"],
+    [role="combobox"],
+    [data-sidebar="menu-button"],
+    input:not([type="checkbox"], [type="radio"], [type="hidden"]) {
+      min-height: 2.5rem;
+    }
+    button[data-size^="icon"] {
+      min-width: 2.5rem;
+    }
+    tr[tabindex] {
+      height: 2.5rem; /* a row's height is its minimum */
+    }
+  }
 }

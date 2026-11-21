@@ -53,6 +53,12 @@ export function EvalView() {
   const [data, setData] = useState<EvalResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<number | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
+  // Below 1280 px the rail is a sheet: picking a row opens it.
+  const pick = (i: number) => {
+    setSel(i);
+    setRailOpen(true);
+  };
 
   useEffect(() => {
     getEval().then(setData, (e) => setError(e instanceof Error ? e.message : String(e)));
@@ -111,8 +117,8 @@ export function EvalView() {
                     key={i}
                     tabIndex={0}
                     aria-selected={sel === i}
-                    onClick={() => setSel(i)}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
+                    onClick={() => pick(i)}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), pick(i))}
                     className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                   >
                     <TableCell>{c.id}</TableCell>
@@ -136,5 +142,7 @@ export function EvalView() {
     <p className="p-4 text-[13px] text-muted-foreground">Select a case to see its details.</p>
   );
 
-  return <Workspace railTitle="Case" center={center} rail={rail} />;
+  return (
+    <Workspace railTitle="Case" railOpen={railOpen} onRailOpenChange={setRailOpen} center={center} rail={rail} />
+  );
 }
