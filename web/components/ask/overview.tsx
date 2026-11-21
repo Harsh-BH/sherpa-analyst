@@ -76,9 +76,9 @@ export function Overview() {
   if (data === undefined)
     return (
       // the loaded panel's measured heights (heading 20, KPI card min 172, trend card 334 px): nothing below jumps
-      <div data-testid="overview-loading" aria-hidden className="grid gap-2.5">
+      <div data-testid="overview-loading" aria-hidden className="@container grid gap-2.5">
         <Skeleton className="h-5 w-56" />
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 @2xl:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-[172px] rounded-xl" />
           ))}
@@ -88,11 +88,12 @@ export function Overview() {
     );
   if (!data?.available) return null;
   return (
-    <section data-testid="overview" aria-labelledby="overview-title" className="grid gap-2.5">
+    // @container: four KPI cards a row only when the column (not the window) is wide enough, as ChartGrid does
+    <section data-testid="overview" aria-labelledby="overview-title" className="@container grid gap-2.5">
       <h2 id="overview-title" className="text-[13px] text-muted-foreground">
         <span className="section-label">Overview</span> · Last 30 days · as of {data.as_of}
       </h2>
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 @2xl:grid-cols-4">
         {data.kpis.map((k, i) => (
           <KpiCard key={k.key} k={k} i={i} />
         ))}

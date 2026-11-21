@@ -53,6 +53,39 @@ test("phone: an answer fits the width too", async ({ page }) => {
   await page.getByTestId("ask-button").click();
   await expect(page.getByTestId("key-chart").locator("svg.marks")).toBeVisible();
   expect(await sideways(page)).toEqual([]);
+  // the chart's PNG button sits under the chart on a phone, not on its legend
+  const chart = page.getByTestId("key-chart");
+  const drawn = (await chart.locator("svg.marks").boundingBox())!;
+  const png = (await chart.getByRole("button", { name: "Download PNG" }).boundingBox())!;
+  expect(png.y).toBeGreaterThanOrEqual(drawn.y + drawn.height - 1);
+  // short text buttons are 40 px tap targets too: an evidence chip, a segment drill
+  await atLeast40(page.getByTestId("chip-E2").first());
+  await atLeast40(page.getByTestId("drill").getByRole("button").first());
+});
+
+test("phone: the home rail's eval link is a 40 px tap target, and following it closes the sheet", async ({ page }) => {
+  await home(page);
+  await page.getByRole("button", { name: "Inspector" }).click();
+  const proof = page.getByTestId("rail-sheet").getByTestId("eval-proof");
+  await expect(proof).toBeVisible();
+  await atLeast40(proof);
+  await proof.click();
+  await expect(page).toHaveURL(/\/eval$/);
+  await page.goBack(); // back on Ask, the sheet stays shut
+  await expect(page.getByTestId("kpi-card").first()).toBeVisible();
+  await expect(page.getByTestId("rail-sheet")).toHaveCount(0);
+});
+
+test("768 px: KPI cards and eval tiles are 2 a row beside the sidebar", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  for (const [path, id] of [["/", "kpi-card"], ["/eval", "eval-tile"]] as const) {
+    await page.goto(path);
+    const cards = page.getByTestId(id);
+    await expect(cards.nth(3)).toBeVisible();
+    const tops = await cards.evaluateAll((els) => els.slice(0, 3).map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(tops[0], path).toBe(tops[1]);
+    expect(tops[2], path).toBeGreaterThan(tops[0]);
+  }
 });
 
 test("phone: compact top bar, off-canvas sidebar, 40 px tap targets", async ({ page }) => {

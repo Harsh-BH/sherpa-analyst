@@ -236,6 +236,7 @@
      can still opt out with a min-h utility. */
   @media (max-width: 767px), (pointer: coarse) {
     button,
+    a[href], /* block and inline-flex links; min-height never applies to a link inside running text */
     [role="tab"],
     [role="option"],
     [role="combobox"],
@@ -243,8 +244,8 @@
     input:not([type="checkbox"], [type="radio"], [type="hidden"]) {
       min-height: 2.5rem;
     }
-    button[data-size^="icon"] {
-      min-width: 2.5rem;
+    button {
+      min-width: 2.5rem; /* icon buttons, and short text ones: evidence chips (E1), segment drills (UPI) */
     }
     tr[tabindex] {
       height: 2.5rem; /* a row's height is its minimum */

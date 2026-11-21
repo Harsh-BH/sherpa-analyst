@@ -101,6 +101,7 @@ function DataHealth() {
 
 /** The Inspector rail when no answer is open: data health for the persona, how Sherpa answers, and the eval result. */
 export function HomeRail() {
+  const { setRailOpen } = useSherpa();
   const [proof, setProof] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -137,6 +138,7 @@ export function HomeRail() {
           <Link
             href="/eval"
             data-testid="eval-proof"
+            onClick={() => setRailOpen(false)} // below 1280 px the rail is Ask's sheet: back on Ask it stays shut
             className="mt-1 inline-flex items-center gap-1 justify-self-start rounded-sm text-[13px] font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {proof}

@@ -84,19 +84,22 @@ export function EvalView() {
           <p className="text-[13px] text-muted-foreground">
             Generated {ok.generated_at ?? "n/a"} · data {ok.data_version ?? "n/a"}
           </p>
-          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t, i) => (
-              <div
-                key={t.label}
-                data-testid="eval-tile"
-                style={{ "--i": i } as CSSProperties}
-                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
-              >
-                <div className="section-label">{t.label}</div>
-                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
-                <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
-              </div>
-            ))}
+          {/* four tiles a row once their column (not the window) is wide enough, as ChartGrid does */}
+          <div className="@container">
+            <div className="grid grid-cols-2 gap-2.5 @2xl:grid-cols-4">
+              {ok.tiles.map((t, i) => (
+                <div
+                  key={t.label}
+                  data-testid="eval-tile"
+                  style={{ "--i": i } as CSSProperties}
+                  className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+                >
+                  <div className="section-label">{t.label}</div>
+                  <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
+                  <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
+                </div>
+              ))}
+            </div>
           </div>
           <ChartGrid charts={ok.charts} from={ok.tiles.length} />
           <div
