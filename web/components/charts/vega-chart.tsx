@@ -34,8 +34,10 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
     // Every charts.py spec is 620 px wide, wider than the rail: fit the container instead (spec: Charts).
     // ponytail: Vega re-reads the container width on window resize only, not when the rail is dragged.
     copy.width = "container";
-    // A fresh element per embed, so a slow earlier embed never draws over this one.
+    // A fresh element per embed, so a slow earlier embed never draws over this one. It stays transparent until
+    // Vega has drawn, then fades and scales in (globals.css chart-in; instant under reduced motion).
     const el = document.createElement("div");
+    el.style.opacity = "0";
     ref.current!.replaceChildren(el);
     let done: (() => void) | undefined;
     let live = true;
@@ -51,8 +53,10 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
       })
       .then(
         (r) => {
-          if (live) done = r.finalize;
-          else r.finalize();
+          if (!live) return r.finalize();
+          done = r.finalize;
+          el.style.opacity = "";
+          el.classList.add("animate-chart-in");
         },
         (e) => {
           if (live) setFailed({ spec, message: e instanceof Error ? e.message : String(e) });

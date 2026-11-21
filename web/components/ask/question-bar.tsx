@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSherpa } from "@/lib/store";
 
-/** The question box and Ask. Empty questions are dropped by the store's ask(). */
+/** The question box and Ask, on frosted glass; a thin indeterminate bar runs along its foot while a question is
+ * in flight. Empty questions are dropped by the store's ask(). */
 export function QuestionBar() {
-  const { draft, setDraft, ask } = useSherpa();
+  const { draft, setDraft, ask, run } = useSherpa();
   return (
     <form
-      className="sticky top-0 z-10 flex gap-2.5 border-b bg-background px-4 py-3 md:px-5"
+      className="sticky top-0 z-10 flex gap-2.5 border-b bg-background/75 px-4 py-3 backdrop-blur-md md:px-5"
       onSubmit={(e) => {
         e.preventDefault();
         void ask(draft);
@@ -30,6 +31,17 @@ export function QuestionBar() {
           ↵
         </kbd>
       </Button>
+      {run.status === "running" && (
+        <div
+          role="progressbar"
+          aria-label="Answering"
+          data-testid="run-progress"
+          className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden"
+        >
+          {/* reduced motion: a still, full-width bar instead of the sweep */}
+          <div className="h-full w-1/3 animate-indeterminate rounded-full bg-accent-blue motion-reduce:w-full motion-reduce:opacity-60" />
+        </div>
+      )}
     </form>
   );
 }

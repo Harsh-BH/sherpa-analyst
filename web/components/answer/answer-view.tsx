@@ -33,7 +33,7 @@ export function Banner({ tone, className, children, ...props }: { tone: keyof ty
 const CONFIDENCE = {
   high: { label: "High", cls: "bg-positive/10 text-positive" },
   medium: { label: "Medium", cls: "bg-warning/12 text-warning" },
-  low: { label: "Low", cls: "bg-negative/10 text-negative" },
+  low: { label: "Low", cls: "bg-negative/8 text-negative" }, // /8: /10 over the page bg is 4.48:1
 };
 const pill = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] font-medium [&>svg]:size-3.5";
 
@@ -52,7 +52,8 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
   const conf = bundle.confidence ? CONFIDENCE[bundle.confidence] : null;
   const assumptions = bundle.plan?.assumptions ?? [];
   return (
-    <article className="grid gap-3.5">
+    // stagger: each section fades in and rises, 50 ms after the one before
+    <article className="stagger grid gap-3.5">
       {bundle.dq.map((w, i) => (
         <Banner key={i} tone={w.severity} data-testid="dq-banner">
           <b className="font-semibold">Data quality · {w.check.replaceAll("_", " ")}:</b> {w.message}
@@ -60,7 +61,7 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
       ))}
       <h2
         data-testid="headline"
-        className="mt-1 text-[22px] leading-[1.3] font-semibold tracking-[-0.01em] text-balance wrap-anywhere"
+        className="mt-1 text-[22px] leading-[1.3] font-semibold tracking-tight text-balance wrap-anywhere"
       >
         {bundle.headline || "No headline was produced."}
       </h2>
@@ -102,7 +103,7 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
       {bundle.confidence_reasons.length > 0 && (
         <Collapsible>
           <CollapsibleTrigger className="group flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground">
-            <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" />
+            <ChevronRight className="size-4 transition-transform duration-200 ease-out group-data-[state=open]:rotate-90" />
             Why {bundle.confidence ?? "this"} confidence
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -116,9 +117,7 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
       )}
       {assumptions.length > 0 && (
         <section className="grid gap-1">
-          <h3 className="text-xs font-medium text-muted-foreground">
-            Assumptions
-          </h3>
+          <h3 className="section-label">Assumptions</h3>
           <ul className="grid list-disc gap-1 pl-[18px] text-[13px] text-muted-foreground wrap-anywhere">
             {assumptions.map((a, i) => (
               <li key={i}>{a}</li>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import { Banner } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
@@ -23,7 +23,7 @@ export function RunsView() {
 
   const center = (
     <div className="mx-auto grid w-full max-w-[960px] gap-3.5 px-4 pt-4 pb-16 md:px-6">
-      <h1 className="text-lg font-semibold">Runs</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Runs</h1>
       {error && <Banner tone="error" role="alert">{error}</Banner>}
       {!data && !error && <p className="text-sm text-muted-foreground">Loading runs…</p>}
       {data?.status === "unavailable" && (
@@ -32,17 +32,25 @@ export function RunsView() {
       {ok && (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t) => (
-              <div key={t.label} data-testid="run-tile" className="min-w-0 rounded-lg border bg-card p-3">
-                <div className="text-xs text-muted-foreground">{t.label}</div>
-                <div className="mt-1 text-xl font-semibold tabular-nums">{t.value}</div>
+            {ok.tiles.map((t, i) => (
+              <div
+                key={t.label}
+                data-testid="run-tile"
+                style={{ "--i": i } as CSSProperties}
+                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+              >
+                <div className="section-label">{t.label}</div>
+                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.value}</div>
               </div>
             ))}
           </div>
           {ok.recent.length === 0 ? (
             <p className="text-sm text-muted-foreground">No runs recorded yet.</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border bg-card">
+            <div
+              style={{ "--i": ok.tiles.length } as CSSProperties}
+              className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
+            >
               <Table data-testid="runs-table" className="text-[12.5px]">
                 <TableHeader>
                   <TableRow>
@@ -59,7 +67,7 @@ export function RunsView() {
                       aria-selected={sel === i}
                       onClick={() => setSel(i)}
                       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
-                      className={cn("cursor-pointer", sel === i && "bg-muted")}
+                      className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                     >
                       <TableCell>{r.asked_at}</TableCell>
                       <TableCell>{r.persona}</TableCell>

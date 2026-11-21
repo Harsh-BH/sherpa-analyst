@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Check, X } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
@@ -38,7 +38,7 @@ function CaseDetail({ c }: { c: Case }) {
       </div>
       {rows.map(([name, pass, detail]) => (
         <div key={name} className="grid gap-1">
-          <h3 className="text-xs font-medium text-muted-foreground">{name}</h3>
+          <h3 className="section-label">{name}</h3>
           <Verdict pass={pass} />
           <p className="wrap-anywhere">{detail ?? "No detail recorded."}</p>
         </div>
@@ -61,7 +61,7 @@ export function EvalView() {
 
   const center = (
     <div className="mx-auto grid w-full max-w-[960px] gap-3.5 px-4 pt-4 pb-16 md:px-6">
-      <h1 className="text-lg font-semibold">Eval</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Eval</h1>
       {error && <Banner tone="error" role="alert">{error}</Banner>}
       {!data && !error && <p className="text-sm text-muted-foreground">Loading eval results…</p>}
       {data?.status === "missing" && (
@@ -77,15 +77,23 @@ export function EvalView() {
             Generated {ok.generated_at ?? "n/a"} · data {ok.data_version ?? "n/a"}
           </p>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
-            {ok.tiles.map((t) => (
-              <div key={t.label} data-testid="eval-tile" className="min-w-0 rounded-lg border bg-card p-3">
-                <div className="text-xs text-muted-foreground">{t.label}</div>
-                <div className="mt-1 text-xl font-semibold tabular-nums">{t.sherpa}</div>
+            {ok.tiles.map((t, i) => (
+              <div
+                key={t.label}
+                data-testid="eval-tile"
+                style={{ "--i": i } as CSSProperties}
+                className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 shadow-sm"
+              >
+                <div className="section-label">{t.label}</div>
+                <div className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">{t.sherpa}</div>
                 <div className="text-xs text-muted-foreground tabular-nums">baseline {t.baseline}</div>
               </div>
             ))}
           </div>
-          <div className="overflow-x-auto rounded-lg border bg-card">
+          <div
+            style={{ "--i": ok.tiles.length } as CSSProperties}
+            className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
+          >
             <Table data-testid="eval-cases" className="text-[12.5px]">
               <TableHeader>
                 <TableRow>
@@ -102,7 +110,7 @@ export function EvalView() {
                     aria-selected={sel === i}
                     onClick={() => setSel(i)}
                     onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
-                    className={cn("cursor-pointer", sel === i && "bg-muted")}
+                    className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
                   >
                     <TableCell>{c.id}</TableCell>
                     <TableCell>{c.kind}</TableCell>

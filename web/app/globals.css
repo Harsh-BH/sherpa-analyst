@@ -4,7 +4,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Inspector Rail tokens (spec: Design -> Tokens). Chrome is grey; hue only for data quality and confidence. */
+/* Inspector Rail tokens (spec: Design -> Tokens), with colour: one brand accent (--accent-blue, also --primary) on a
+   grey base; status hues for run status, pass/fail, deltas, confidence and data quality.
+   Every text/background pair is AA, checked by a contrast script, not by eye. */
 :root {
   --background: #f6f6f7;
   --foreground: #111214;
@@ -12,7 +14,7 @@
   --card-foreground: #111214;
   --popover: #ffffff;
   --popover-foreground: #111214;
-  --primary: #111214;
+  --primary: #2456c4; /* the brand accent: Ask, links */
   --primary-foreground: #ffffff;
   --secondary: #efeff1;
   --secondary-foreground: #111214;
@@ -21,7 +23,7 @@
   --accent: #efeff1; /* shadcn's hover fill, grey; the blue accent is --accent-blue */
   --accent-foreground: #111214;
   --accent-blue: #2456c4;
-  --positive: #167a3c;
+  --positive: #13703a; /* 4.97:1 on its own 10% tint over bg */
   --negative: #c22f2a;
   --warning: #8c5800;
   --destructive: #c22f2a;
@@ -31,46 +33,48 @@
   --radius: 0.5rem;
   --sidebar: #eeeef0;
   --sidebar-foreground: #111214;
-  --sidebar-primary: #111214;
+  --sidebar-primary: #2456c4;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #ffffff;
   --sidebar-accent-foreground: #111214;
   --sidebar-border: #e1e2e5;
   --sidebar-ring: #2456c4;
+  --tint: rgb(36 86 196 / 0.07); /* the faint accent glow at the top of the main column */
 }
 
 .dark {
   color-scheme: dark;
-  --background: #0a0b0d;
-  --foreground: #edeef0;
-  --card: #131417;
-  --card-foreground: #edeef0;
-  --popover: #131417;
-  --popover-foreground: #edeef0;
-  --primary: #edeef0;
-  --primary-foreground: #131417;
-  --secondary: #1c1e22;
-  --secondary-foreground: #edeef0;
-  --muted: #1c1e22;
-  --muted-foreground: #9a9ea7;
-  --accent: #1c1e22;
-  --accent-foreground: #edeef0;
-  --accent-blue: #7fa8ff;
+  --background: #0b0d12;
+  --foreground: #eceef2;
+  --card: #12151b;
+  --card-foreground: #eceef2;
+  --popover: #12151b;
+  --popover-foreground: #eceef2;
+  --primary: #8ab4ff;
+  --primary-foreground: #0b0d12;
+  --secondary: #1a1e26;
+  --secondary-foreground: #eceef2;
+  --muted: #1a1e26;
+  --muted-foreground: #9ca2ae;
+  --accent: #1a1e26;
+  --accent-foreground: #eceef2;
+  --accent-blue: #8ab4ff;
   --positive: #5ed18e;
   --negative: #ff7b74;
   --warning: #f0bf4f;
   --destructive: #ff7b74;
-  --border: #25272c;
-  --input: #5e626a; /* 3.0:1 on surface, 3.2:1 on bg */
-  --ring: #7fa8ff;
-  --sidebar: #08090a;
-  --sidebar-foreground: #edeef0;
-  --sidebar-primary: #edeef0;
-  --sidebar-primary-foreground: #131417;
-  --sidebar-accent: #131417;
-  --sidebar-accent-foreground: #edeef0;
-  --sidebar-border: #25272c;
-  --sidebar-ring: #7fa8ff;
+  --border: #23262e;
+  --input: #5d636f; /* 3:1 on surface and bg (WCAG 1.4.11) */
+  --ring: #8ab4ff;
+  --sidebar: #090b0f;
+  --sidebar-foreground: #eceef2;
+  --sidebar-primary: #8ab4ff;
+  --sidebar-primary-foreground: #0b0d12;
+  --sidebar-accent: #12151b;
+  --sidebar-accent-foreground: #eceef2;
+  --sidebar-border: #23262e;
+  --sidebar-ring: #8ab4ff;
+  --tint: rgb(138 180 255 / 0.06);
 }
 
 @theme inline {
@@ -114,6 +118,94 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --animate-rise: rise 320ms ease-out backwards;
+  --animate-pop: pop 260ms ease-out backwards;
+  --animate-chart-in: chart-in 360ms ease-out backwards;
+  --animate-indeterminate: indeterminate 1.2s ease-in-out infinite; /* in progress only */
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite; /* in progress only */
+}
+
+/* Motion (spec 4): 150-450 ms, ease-out, CSS only. Fill mode is backwards, so nothing keeps a transform once in. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes chart-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@keyframes shimmer {
+  to {
+    translate: 100% 0; /* from the element's own -translate-x-full */
+  }
+}
+
+/* Entry stagger: fade in and rise 6px, 50 ms per step of --i (set inline, or by .stagger on the parent). */
+@utility rise {
+  animation: var(--animate-rise);
+  animation-delay: calc(min(var(--i, 0) + var(--j, 0), 14) * 50ms);
+}
+@utility stagger {
+  & > * {
+    animation: var(--animate-rise);
+    animation-delay: calc(min(var(--i, 0), 14) * 50ms);
+  }
+  & > :nth-child(2) { --i: 1; }
+  & > :nth-child(3) { --i: 2; }
+  & > :nth-child(4) { --i: 3; }
+  & > :nth-child(5) { --i: 4; }
+  & > :nth-child(6) { --i: 5; }
+  & > :nth-child(7) { --i: 6; }
+  & > :nth-child(8) { --i: 7; }
+  & > :nth-child(9) { --i: 8; }
+  & > :nth-child(n + 10) { --i: 9; }
+}
+
+/* Section labels: small uppercase, muted, letter-spaced. */
+@utility section-label {
+  font-size: 11px;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* The faint accent glow at the top of the main column. */
+@utility bg-tint {
+  background-image: radial-gradient(ellipse 70% 280px at 50% -60px, var(--tint), transparent);
+}
+
+/* One rule switches all of it off: animations and transitions become instant, smooth scrolling stops. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer base {

@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/utils";
 import type { View } from "@/lib/api";
 import { useSherpa } from "@/lib/store";
@@ -33,7 +35,7 @@ export function EvidenceChip({ id, missing }: { id: string; missing?: boolean })
         selectEvidence(id);
         setRailOpen(true);
       }}
-      className="rounded-[4px] border border-input bg-card px-1.5 py-1 font-mono text-[11.5px] leading-none transition-colors aria-[pressed=false]:hover:border-accent-blue aria-[pressed=false]:hover:text-accent-blue focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none aria-pressed:border-accent-blue aria-pressed:bg-accent-blue aria-pressed:text-card"
+      className="rounded-[4px] border border-input bg-card px-1.5 py-1 font-mono text-[11.5px] leading-none transition-[color,background-color,border-color,scale] duration-150 ease-out active:scale-[0.98] aria-[pressed=false]:hover:border-accent-blue aria-[pressed=false]:hover:text-accent-blue focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none aria-pressed:border-accent-blue aria-pressed:bg-accent-blue aria-pressed:text-card"
     >
       {id}
     </button>
@@ -46,11 +48,9 @@ export function Claims({ claims }: { claims: View["claims"] }) {
   if (!claims.length) return null;
   return (
     <section className="grid gap-2">
-      <h3 className="text-xs font-medium text-muted-foreground">
-        What the evidence says
-      </h3>
-      <ol className="rounded-lg border bg-card">
-        {claims.map((c) => {
+      <h3 className="section-label">What the evidence says</h3>
+      <ol className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        {claims.map((c, j) => {
           const k = KINDS[c.kind];
           return (
             <li
@@ -59,7 +59,9 @@ export function Claims({ claims }: { claims: View["claims"] }) {
               data-kind={c.kind}
               data-cites={c.evidence_ids.join(" ")}
               data-highlight={selectedEvidenceId !== null && c.evidence_ids.includes(selectedEvidenceId)}
-              className="grid gap-x-3 gap-y-1 border-b px-3 py-2.5 transition-colors last:border-b-0 data-[highlight=true]:bg-muted data-[highlight=true]:shadow-[inset_2px_0_0_var(--foreground)] sm:grid-cols-[124px_minmax(0,1fr)]"
+              // rises after its section (whose --i it inherits), one step per claim
+              style={{ "--j": j } as CSSProperties}
+              className="rise grid gap-x-3 gap-y-1 border-b px-3 py-2.5 transition-[background-color,box-shadow] duration-200 ease-out last:border-b-0 data-[highlight=true]:bg-accent-blue/8 data-[highlight=true]:shadow-[inset_2px_0_0_var(--accent-blue)] sm:grid-cols-[124px_minmax(0,1fr)]"
             >
               <span className="mt-0.5 inline-flex items-center gap-2 self-start text-[11.5px] font-medium text-muted-foreground">
                 <span className="w-3 font-mono">{c.n}</span>

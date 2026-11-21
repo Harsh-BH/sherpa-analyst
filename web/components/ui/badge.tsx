@@ -18,6 +18,10 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // status hues (run status, pass/fail): text on its own 10% tint, AA on the card
+        positive: "bg-positive/10 text-positive",
+        warning: "bg-warning/12 text-warning",
+        negative: "bg-negative/10 text-negative",
       },
     },
     defaultVariants: {

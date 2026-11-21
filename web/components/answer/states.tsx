@@ -9,7 +9,7 @@ import { useSherpa } from "@/lib/store";
 
 function Card({ icon, title, testid, children }: { icon: ReactNode; title: string; testid?: string; children: ReactNode }) {
   return (
-    <section data-testid={testid} className="grid gap-3 rounded-lg border bg-card px-4 py-3.5 text-sm [&_svg]:size-4">
+    <section data-testid={testid} className="rise grid gap-3 rounded-xl border bg-card px-4 py-3.5 text-sm shadow-sm [&_svg]:size-4">
       <h2 className="flex items-center gap-2 text-[15px] font-semibold">
         {icon}
         {title}
@@ -88,7 +88,7 @@ export function ErrorCard({ bundle }: { bundle: AnswerBundle }) {
     <section
       role="alert"
       data-testid="error-card"
-      className="grid gap-2 rounded-lg border border-negative/40 bg-negative/10 px-4 py-3.5 text-sm"
+      className="rise grid gap-2 rounded-xl border border-negative/40 bg-negative/8 px-4 py-3.5 text-sm" // /8: AA for the red heading on the page bg
     >
       <h2 className="flex items-center gap-2 text-[15px] font-semibold text-negative">
         <CircleAlert className="size-4" />

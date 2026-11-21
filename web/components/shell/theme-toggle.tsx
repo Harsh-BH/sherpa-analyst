@@ -21,7 +21,8 @@ export function ThemeToggle() {
       title={`Theme: ${theme}`}
       onClick={() => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length])}
     >
-      <Icon className="size-4" />
+      {/* keyed, so each switch remounts the icon and it turns in (instant under reduced motion) */}
+      <Icon key={theme} className="size-4 animate-in spin-in-90 fade-in-0 duration-300 ease-out" />
     </Button>
   );
 }
