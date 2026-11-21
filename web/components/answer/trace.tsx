@@ -49,11 +49,21 @@ export function Trace({ run }: { run: Run }) {
               <ChevronRight className="ml-auto size-4 text-muted-foreground transition-transform duration-200 ease-out group-data-[state=open]:rotate-90" />
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <ul className="grid gap-1 border-t px-3 py-2">
-                {stages.map((s) => (
-                  <li key={s.label} className="flex justify-between gap-3">
+              {/* label | timing bar (width = the API's share of the total, grows in) | the API's formatted time */}
+              <ul className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 border-t px-3 py-2">
+                {stages.map((s, i) => (
+                  <li key={s.label} data-testid="trace-stage" className="col-span-3 grid grid-cols-subgrid items-center">
                     <span>{stageLabel(s.label)}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{s.value}</span>
+                    <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      {s.fraction != null && (
+                        <span
+                          data-testid="stage-bar"
+                          style={{ width: `${s.fraction * 100}%`, animationDelay: `${i * 50}ms` }}
+                          className="block h-full origin-left animate-grow rounded-full bg-accent-blue"
+                        />
+                      )}
+                    </span>
+                    <span className="text-right font-mono text-xs text-muted-foreground">{s.value}</span>
                   </li>
                 ))}
               </ul>

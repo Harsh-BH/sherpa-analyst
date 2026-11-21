@@ -121,6 +121,7 @@
   --animate-rise: rise 320ms ease-out backwards;
   --animate-pop: pop 260ms ease-out backwards;
   --animate-chart-in: chart-in 360ms ease-out backwards;
+  --animate-grow: grow 420ms ease-out backwards; /* a timing bar growing from 0 to its width */
   --animate-indeterminate: indeterminate 1.2s ease-in-out infinite; /* in progress only */
   --animate-shimmer: shimmer 1.4s ease-in-out infinite; /* in progress only */
 }
@@ -142,6 +143,11 @@
   from {
     opacity: 0;
     transform: scale(0.98);
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
   }
 }
 @keyframes indeterminate {

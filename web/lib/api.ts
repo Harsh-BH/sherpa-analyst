@@ -41,6 +41,10 @@ const getJSON = async <T>(path: string): Promise<T> => (await request(path)).jso
 export const getMeta = () => getJSON<Meta>("/api/meta");
 export const getEval = () => getJSON<EvalResponse>("/api/eval");
 export const getRuns = () => getJSON<RunsResponse>("/api/runs");
+export const getOverview = (persona: string, signal?: AbortSignal) =>
+  request(`/api/overview?persona=${encodeURIComponent(persona)}`, { signal }).then(
+    (r) => r.json() as Promise<OverviewResponse>,
+  );
 
 export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   const res = await request("/api/explore/plan", {

@@ -1,13 +1,25 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import Link from "next/link";
+import { History } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
+import { ChartGrid } from "@/components/charts/chart-card";
 import { Workspace } from "@/components/shell/workspace";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getRuns, type RunsResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+// Run status in its hue (text stays, so never colour alone): answered positive, clarify warning, refused muted.
+const STATUS = { answered: "positive", clarify: "warning", refused: "secondary", error: "destructive" } as const;
+const StatusBadge = ({ status }: { status: string }) => (
+  <Badge data-testid="run-status" variant={STATUS[status as keyof typeof STATUS] ?? "outline"}>
+    {status}
+  </Badge>
+);
 
 export function RunsView() {
   const [data, setData] = useState<RunsResponse | null>(null);
@@ -23,7 +35,12 @@ export function RunsView() {
 
   const center = (
     <div className="mx-auto grid w-full max-w-[960px] gap-3.5 px-4 pt-4 pb-16 md:px-6">
-      <h1 className="text-lg font-semibold tracking-tight">Runs</h1>
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">Runs</h1>
+        <p data-testid="runs-note" className="text-[13px] text-muted-foreground">
+          Runs asked in the app. Test and eval runs are excluded.
+        </p>
+      </div>
       {error && <Banner tone="error" role="alert">{error}</Banner>}
       {!data && !error && <p className="text-sm text-muted-foreground">Loading runs…</p>}
       {data?.status === "unavailable" && (
@@ -45,43 +62,56 @@ export function RunsView() {
             ))}
           </div>
           {ok.recent.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No runs recorded yet.</p>
-          ) : (
             <div
+              data-testid="runs-empty"
               style={{ "--i": ok.tiles.length } as CSSProperties}
-              className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
+              className="rise grid justify-items-center gap-2 rounded-xl border border-dashed bg-card px-4 py-10 text-center"
             >
-              <Table data-testid="runs-table" className="text-[12.5px]">
-                <TableHeader>
-                  <TableRow>
-                    {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost"].map((h) => (
-                      <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ok.recent.map((r, i) => (
-                    <TableRow
-                      key={r.run_id}
-                      tabIndex={0}
-                      aria-selected={sel === i}
-                      onClick={() => setSel(i)}
-                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
-                      className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
-                    >
-                      <TableCell>{r.asked_at}</TableCell>
-                      <TableCell>{r.persona}</TableCell>
-                      <TableCell className="min-w-64 whitespace-normal wrap-break-word">{r.question}</TableCell>
-                      <TableCell>{r.status}</TableCell>
-                      <TableCell>{r.route}</TableCell>
-                      <TableCell>{r.confidence}</TableCell>
-                      <TableCell>{r.total}</TableCell>
-                      <TableCell>{r.cost}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <History aria-hidden className="size-5 text-muted-foreground" />
+              <p className="text-sm font-medium">No runs yet. Ask a question and it shows up here.</p>
+              <Link href="/" className="text-[13px] text-primary underline-offset-4 hover:underline">
+                Go to Ask
+              </Link>
             </div>
+          ) : (
+            <>
+              <ChartGrid charts={ok.charts} from={ok.tiles.length} />
+              <div
+                style={{ "--i": ok.tiles.length + ok.charts.length } as CSSProperties}
+                className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
+              >
+                <Table data-testid="runs-table" className="text-[12.5px]">
+                  <TableHeader>
+                    <TableRow>
+                      {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost"].map((h) => (
+                        <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ok.recent.map((r, i) => (
+                      <TableRow
+                        key={r.run_id}
+                        tabIndex={0}
+                        aria-selected={sel === i}
+                        onClick={() => setSel(i)}
+                        onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(i))}
+                        className={cn("cursor-pointer", sel === i && "bg-accent-blue/8 hover:bg-accent-blue/8")}
+                      >
+                        <TableCell>{r.asked_at}</TableCell>
+                        <TableCell>{r.persona}</TableCell>
+                        <TableCell className="min-w-64 whitespace-normal wrap-break-word">{r.question}</TableCell>
+                        <TableCell><StatusBadge status={r.status} /></TableCell>
+                        <TableCell>{r.route}</TableCell>
+                        <TableCell>{r.confidence}</TableCell>
+                        <TableCell>{r.total}</TableCell>
+                        <TableCell>{r.cost}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </>
       )}

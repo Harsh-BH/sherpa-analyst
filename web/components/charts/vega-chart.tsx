@@ -38,14 +38,18 @@ function Chart({ spec, lib }: { spec: Spec; lib: VegaEmbed }) {
     // Vega has drawn, then fades and scales in (globals.css chart-in; instant under reduced motion).
     const el = document.createElement("div");
     el.style.opacity = "0";
+    const width = ref.current!.clientWidth;
     ref.current!.replaceChildren(el);
+    const config = chartTheme(theme);
+    // Vega never wraps a title: on a narrow column a long one ends in an ellipsis instead of running off the card
+    if (width > 0) config.title = { ...config.title, limit: width };
     let done: (() => void) | undefined;
     let live = true;
     lib
       .default(el, copy as VisualizationSpec, {
         actions: false,
         renderer: "svg",
-        config: chartTheme(theme),
+        config,
         tooltip: { theme },
         // Errors only: a container width with a step height (the waterfall) makes Vega-Lite warn
         // 'Dropping "fit-y"' on every render, though "fit-x" is what it keeps and what is wanted.

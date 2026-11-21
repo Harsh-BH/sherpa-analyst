@@ -4,7 +4,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Check, X } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
+import { ChartGrid } from "@/components/charts/chart-card";
 import { Workspace } from "@/components/shell/workspace";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getEval, type EvalResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -12,14 +14,14 @@ import { cn } from "@/lib/utils";
 type Ok = Extract<EvalResponse, { status: "ok" }>;
 type Case = Ok["cases"][number];
 
-/** Pass or fail as icon plus text, never colour alone. */
+/** Pass or fail as icon plus text in its status hue, never colour alone. */
 function Verdict({ pass }: { pass: boolean }) {
   const Icon = pass ? Check : X;
   return (
-    <span className="inline-flex items-center gap-1">
-      <Icon className="size-4" aria-hidden />
+    <Badge variant={pass ? "positive" : "negative"} data-testid="verdict" data-pass={pass}>
+      <Icon aria-hidden />
       {pass ? "Pass" : "Fail"}
-    </span>
+    </Badge>
   );
 }
 
@@ -90,8 +92,9 @@ export function EvalView() {
               </div>
             ))}
           </div>
+          <ChartGrid charts={ok.charts} from={ok.tiles.length} />
           <div
-            style={{ "--i": ok.tiles.length } as CSSProperties}
+            style={{ "--i": ok.tiles.length + ok.charts.length } as CSSProperties}
             className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
           >
             <Table data-testid="eval-cases" className="text-[12.5px]">
