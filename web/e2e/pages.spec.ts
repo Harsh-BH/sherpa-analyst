@@ -19,7 +19,8 @@ test("runs shows tiles or a clear unavailable message", async ({ page }) => {
   await page.goto("/runs");
   await expect(page.getByTestId("run-tile").first().or(page.getByTestId("runs-unavailable"))).toBeVisible();
   if (await page.getByTestId("runs-unavailable").isVisible()) return;
-  await expect(page.getByTestId("run-tile")).toHaveCount(7);
+  await expect(page.getByTestId("run-tile")).toHaveCount(8); // ... and Helpful (the share of rated runs rated up)
+  await expect(page.getByTestId("run-tile").last()).toContainText("Helpful");
   const rows = page.getByTestId("runs-table").getByRole("row");
   if ((await rows.count()) > 1) {
     await rows.nth(1).click();

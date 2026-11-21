@@ -29,6 +29,20 @@ function DeepLink() {
   return null;
 }
 
+/** `/?run=<id>` reopens that saved run, once, as soon as the persona is known (the API scopes runs to it). */
+function RunLink() {
+  const params = useSearchParams();
+  const { persona, openRun } = useSherpa();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || !persona) return;
+    done.current = true; // later ?run= changes are openRun's own replaceState
+    const id = params.get("run");
+    if (id) void openRun(id);
+  }, [params, persona, openRun]);
+  return null;
+}
+
 function Center() {
   const { metaError, run } = useSherpa();
   const result = run.status === "done" ? run.result : undefined;
@@ -64,6 +78,7 @@ export default function AskPage() {
     <>
       <Suspense fallback={null}>
         <DeepLink />
+        <RunLink />
       </Suspense>
       <Workspace
         railTitle="Inspector"
