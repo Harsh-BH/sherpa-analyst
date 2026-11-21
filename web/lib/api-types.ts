@@ -126,6 +126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/data-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Health
+         * @description The home rail's data health: the governed dq checks over the last 30 days, as the persona.
+         */
+        get: operations["data_health_api_data_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -396,6 +416,47 @@ export interface components {
                 [key: string]: number | string | null;
             };
         };
+        /**
+         * DataHealth
+         * @description The rail's "Data health · last 30 days": the governed dq checks over the window, as the persona.
+         */
+        DataHealth: {
+            /**
+             * Available
+             * @default true
+             * @constant
+             */
+            available: true;
+            /** Persona */
+            persona: string;
+            /** Window */
+            window: string;
+            /** Issues */
+            issues: components["schemas"]["DataIssue"][];
+        };
+        /** DataIssue */
+        DataIssue: {
+            /** Check */
+            check: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warn" | "error";
+            /** When */
+            when: string;
+            /** Text */
+            text: string;
+            /** Question */
+            question: string;
+        };
+        /** DayAsk */
+        DayAsk: {
+            /** Label */
+            label: string;
+            /** Question */
+            question: string;
+        };
         /** DemoItem */
         DemoItem: {
             /** Question */
@@ -555,6 +616,8 @@ export interface components {
             cases: components["schemas"]["EvalCase"][];
             /** Charts */
             charts: components["schemas"]["ChartView"][];
+            /** Proof */
+            proof?: string | null;
         };
         /** EvalTile */
         EvalTile: {
@@ -830,6 +893,11 @@ export interface components {
             /** Kpis */
             kpis: components["schemas"]["Kpi"][];
             trend: components["schemas"]["ChartView"];
+            /**
+             * Unusual
+             * @default []
+             */
+            unusual: components["schemas"]["DayAsk"][];
         };
         /** OverviewUnavailable */
         OverviewUnavailable: {
@@ -1220,6 +1288,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OverviewOk"] | components["schemas"]["OverviewUnavailable"];
+                };
+            };
+            /** @description Unknown persona */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    data_health_api_data_health_get: {
+        parameters: {
+            query?: {
+                persona?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataHealth"] | components["schemas"]["OverviewUnavailable"];
                 };
             };
             /** @description Unknown persona */

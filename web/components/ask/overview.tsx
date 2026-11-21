@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { ChartCard } from "@/components/charts/chart-card";
@@ -12,6 +12,20 @@ import { cn } from "@/lib/utils";
 
 const ARROWS = { up: ArrowUpRight, down: ArrowDownRight, flat: ArrowRight };
 const TONES = { positive: "text-positive", negative: "text-negative", neutral: "text-muted-foreground" };
+
+/** Ask from a home panel (a trend day, a data-health row): back to the top of the centre, where the trace
+ * shows, with the rail sheet closed below 1280 px. */
+export function useAskFromHome() {
+  const { ask, setRailOpen } = useSherpa();
+  return useCallback(
+    (question: string) => {
+      document.querySelector('[data-testid="question"]')?.closest(".overflow-y-auto")?.scrollTo({ top: 0 });
+      setRailOpen(false);
+      void ask(question);
+    },
+    [ask, setRailOpen],
+  );
+}
 
 function KpiCard({ k, i }: { k: Kpi; i: number }) {
   const Arrow = ARROWS[k.direction];
@@ -43,6 +57,7 @@ function KpiCard({ k, i }: { k: Kpi; i: number }) {
  * persona. Refetched when the persona changes; hidden when the API says it is unavailable or the call fails. */
 export function Overview() {
   const { persona } = useSherpa();
+  const askWhy = useAskFromHome();
   const [got, setGot] = useState<{ persona: string; data: OverviewResponse | null } | null>(null);
 
   useEffect(() => {
@@ -81,7 +96,36 @@ export function Overview() {
           <KpiCard key={k.key} k={k} i={i} />
         ))}
       </div>
-      <ChartCard chart={data.trend} i={data.kpis.length} />
+      <ChartCard
+        chart={data.trend}
+        i={data.kpis.length}
+        // a day's point carries `_ask`, the question Python built; the line and last period's points carry none
+        onDatumClick={(d) => typeof d._ask === "string" && askWhy(d._ask)}
+        caption={
+          <span data-testid="trend-caption" className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            Click a day to ask why it moved.
+            {data.unusual.length > 0 && (
+              <>
+                <span>Unusual days:</span>
+                {data.unusual.map((u) => (
+                  <button
+                    key={u.question}
+                    type="button"
+                    data-testid="unusual-day"
+                    title={u.question}
+                    onClick={() => askWhy(u.question)}
+                    className="inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2 font-medium text-foreground tabular-nums transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    <span aria-hidden className="size-2 rounded-full bg-negative" />
+                    <span className="sr-only">Ask why it moved: </span>
+                    {u.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </span>
+        }
+      />
     </section>
   );
 }

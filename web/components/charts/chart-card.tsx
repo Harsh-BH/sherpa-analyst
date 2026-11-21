@@ -1,25 +1,28 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { VegaChart } from "@/components/charts/vega-chart";
 import type { ChartView } from "@/lib/api";
 
 /** A dashboard chart (Home, Eval, Runs) on a card that rises in at stagger step `i`. The spec draws its own
- * title; `summary` is the text alternative. `onDatumClick` and `downloadName` pass through to VegaChart. */
+ * title; `summary` is the text alternative. `onDatumClick` and `downloadName` pass through to VegaChart;
+ * `caption` goes under the chart. */
 export function ChartCard({
   chart,
   i = 0,
   onDatumClick,
   downloadName,
+  caption,
 }: {
   chart: ChartView;
   i?: number;
   onDatumClick?: (datum: Record<string, unknown>) => void;
   downloadName?: string;
+  caption?: ReactNode;
 }) {
   return (
     <figure
-      // An img's children are presentational, which would hide the download button from assistive tech
-      role={downloadName ? undefined : "img"}
+      // An img's children are presentational, which would hide the download button and caption from assistive tech
+      role={downloadName || caption ? undefined : "img"}
       aria-label={chart.summary}
       data-testid="chart-card"
       data-chart={chart.key}
@@ -27,6 +30,7 @@ export function ChartCard({
       className="rise min-w-0 rounded-xl border bg-card p-3.5 shadow-sm"
     >
       <VegaChart spec={chart.spec} onDatumClick={onDatumClick} downloadName={downloadName} />
+      {caption && <figcaption className="mt-1.5 text-xs text-muted-foreground">{caption}</figcaption>}
     </figure>
   );
 }
