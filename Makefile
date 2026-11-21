@@ -12,10 +12,7 @@ seed:
 	uv run python -m db.roles --db $(DB)
 
 # second seed for the eval, in its own database (created and schema'd if missing)
-seed-api:
-	uv run uvicorn app.api:app --host 127.0.0.1 --port 8000 --reload
-
-eval:
+seed-eval:
 	uv run python -m gen.generate --seed 7 --db sherpa_s7 --create
 	uv run python -m db.roles --db sherpa_s7
 
@@ -24,6 +21,9 @@ test:
 
 app:
 	uv run streamlit run app/streamlit_app.py
+
+api:
+	uv run uvicorn app.api:app --host 127.0.0.1 --port 8000 --reload
 
 eval:
 	@if [ -f eval/run.py ]; then uv run python -m eval.run; else echo "eval/run.py not there yet"; fi
