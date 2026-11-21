@@ -5,6 +5,7 @@ import { ChevronRight, CircleAlert, Download, Gauge, Info, ShieldCheck, Triangle
 
 import { Claims } from "@/components/answer/claims";
 import { Drivers } from "@/components/answer/drivers";
+import { CopyAnswer, FollowUps, HeadlineText } from "@/components/answer/extras";
 import { KeyChart } from "@/components/answer/key-chart";
 import { Recon } from "@/components/answer/recon";
 import { RunActions } from "@/components/answer/run-actions";
@@ -39,12 +40,15 @@ const CONFIDENCE = {
 };
 const pill = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12.5px] font-medium [&>svg]:size-3.5";
 
+/** `sherpa-run-<run id>`, keeping only the run id's safe characters: the bundle and chart download names. */
+const fileName = (runId: string) => `sherpa-run-${runId.replace(/[^A-Za-z0-9_.-]/g, "_")}`;
+
 /** Save the bundle as JSON; the file name keeps only safe characters of the run id. */
 export function download(bundle: AnswerBundle) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sherpa-run-${bundle.run_id.replace(/[^A-Za-z0-9_.-]/g, "_")}.json`;
+  a.download = `${fileName(bundle.run_id)}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url));
 }
@@ -70,7 +74,11 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
           data-testid="headline"
           className="mt-1 text-[22px] leading-[1.3] font-semibold tracking-tight text-balance wrap-anywhere"
         >
-          {bundle.headline || "No headline was produced."}
+          {bundle.headline ? (
+            <HeadlineText text={bundle.headline} parts={view.headline_parts} />
+          ) : (
+            "No headline was produced."
+          )}
         </h2>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -93,7 +101,12 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
             Governed metric
           </span>
         )}
-        <RunActions key={bundle.run_id} runId={bundle.run_id} persona={bundle.persona} className="ml-auto" />
+        {!view.partial && (
+          <>
+            <CopyAnswer markdown={view.markdown} />
+            <RunActions key={bundle.run_id} runId={bundle.run_id} persona={bundle.persona} />
+          </>
+        )}
       </div>
       {bundle.route === "sql" && (
         <Banner tone="warn" data-testid="sql-warning">
@@ -135,7 +148,8 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
         </section>
       )}
       {view.partial ? <ClaimsSkeleton /> : <Claims claims={view.claims} />}
-      <KeyChart key={bundle.run_id} view={view} />
+      <KeyChart key={bundle.run_id} view={view} name={fileName(bundle.run_id)} />
+      {!view.partial && <FollowUps items={view.follow_ups} />}
       {view.drivers && <Drivers drivers={view.drivers} />}
       {view.recon && <Recon recon={view.recon} />}
       {!view.partial && (

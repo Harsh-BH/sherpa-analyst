@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.answer_extras import tone
 from app.view import ChartView
 from sherpa import charts, db, dq
 from sherpa.compiler import compile_dq_queries, compile_metric, default_baseline, metric_value, resolve_window
@@ -98,10 +99,9 @@ def _kpi(key: str, n: dict) -> Kpi:
         diff = cur - prev
         delta = format_value(diff, "pp") if fmt == "pct" else f"{diff / prev:+.1%}"
     direction = "flat" if not any(c in "123456789" for c in delta) else "up" if diff > 0 else "down"
-    tone = "neutral" if direction == "flat" else "positive" if (direction == "up") == m.higher_is_better else "negative"
     value = format_value(cur, fmt)
     rows = [{"day": _day(d), "value": v} for d, v in n["daily"] if v is not None]
-    return Kpi(key=key, label=m.label, value=value, delta=delta, direction=direction, tone=tone,
+    return Kpi(key=key, label=m.label, value=value, delta=delta, direction=direction, tone=tone(direction, m.higher_is_better),
                summary=f"{m.label} {value}, {delta} vs the previous 30 days", spark=charts.sparkline(rows, "day", "value"))
 
 
