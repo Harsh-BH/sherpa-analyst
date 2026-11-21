@@ -72,6 +72,12 @@ def test_ask_sets_streaming_headers():
     assert r.headers["cache-control"] == "no-cache, no-transform" and r.headers["x-accel-buffering"] == "no"
 
 
+def test_openapi_documents_the_ask_result():
+    """web/lib/api-types.ts is generated from /openapi.json, so the `result` event's payload must be in it."""
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    assert {"AskResult", "AnswerBundle", "View"} <= set(schemas)
+
+
 def test_ask_rejects_bad_input():
     assert ask(persona="nobody").status_code == 422
     assert ask(question="x" * 501).status_code == 422

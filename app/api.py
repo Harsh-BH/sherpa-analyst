@@ -119,6 +119,12 @@ class AskRequest(BaseModel):
         return v
 
 
+class AskResult(BaseModel):
+    """The data of the stream's one `result` event."""
+    bundle: AnswerBundle
+    view: View
+
+
 class ExplorePlan(BaseModel):
     question: str
     plan: AnalysisPlan
@@ -245,11 +251,13 @@ def _stream(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None) -> 
         if kind == "stage":
             yield _sse("stage", json.dumps(payload))
             continue
-        yield _sse("result", f'{{"bundle":{payload.model_dump_json()},"view":{build_view(payload).model_dump_json()}}}')
+        yield _sse("result", AskResult(bundle=payload, view=build_view(payload)).model_dump_json())
         return
 
 
-@app.post("/api/ask", response_class=StreamingResponse, responses={200: {"content": {"text/event-stream": {}}}})
+@app.post("/api/ask", response_class=StreamingResponse, responses={200: {
+    "model": AskResult, "content": {"text/event-stream": {}},
+    "description": "SSE: `stage` events {name, t_ms} as stages start, then one `result` event whose data is AskResult."}})
 def ask(req: AskRequest) -> StreamingResponse:
     plan = req.plan
     if req.patch is not None:
