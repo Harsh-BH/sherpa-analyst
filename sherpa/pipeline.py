@@ -373,8 +373,11 @@ def _denominator_check(r: _Run, plan: AnalysisPlan, filters: list[Filter], varia
 
 # ------------------------------------------------------------------ entry point
 def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
-           on_stage: Callable[[str], None] | None = None) -> AnswerBundle:
-    """on_stage(name) is called as each stage starts: plan, triage, analysis, dq, narrate, check. It can never break a run."""
+           on_stage: Callable[[str], None] | None = None,
+           on_partial: Callable[[AnswerBundle], None] | None = None) -> AnswerBundle:
+    """on_stage(name) is called as each stage starts: plan, triage, analysis, dq, narrate, check.
+    on_partial(bundle) is called once, after analysis and dq and before narrate, with a deep copy of the bundle so far:
+    evidence, drivers/recon, dq, plan and route, but no headline, claims or confidence. Neither can ever break a run."""
     t_start = time.perf_counter()
     r = _Run(persona)
 
@@ -472,6 +475,11 @@ def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
             bundle.dq = _dq_evidence(r, plan, filters, as_of)
             t = r.tick("dq", t)   # timed only when it ran, so the footprint's steps are the stages the trace showed
 
+        if on_partial is not None:
+            try:
+                on_partial(bundle.model_copy(update={"evidence": r.evidence}).model_copy(deep=True))
+            except Exception:
+                pass
         stage("narrate")
         try:
             narr, u = narrate.narrate(question, plan, r.evidence, drivers=bundle.drivers, dq=bundle.dq)
