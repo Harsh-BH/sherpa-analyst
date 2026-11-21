@@ -47,7 +47,8 @@ export function Claims({ claims }: { claims: View["claims"] }) {
   const { selectedEvidenceId } = useSherpa();
   if (!claims.length) return null;
   return (
-    <section className="grid gap-2">
+    // data-swap-in: when a result replaces its partial, the claims rise in (the rest of the answer was drawn already)
+    <section data-swap-in className="grid gap-2">
       <h3 className="section-label">What the evidence says</h3>
       <ol className="overflow-hidden rounded-xl border bg-card shadow-sm">
         {claims.map((c, j) => {

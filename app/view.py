@@ -217,8 +217,10 @@ def _driver_section(b: AnswerBundle) -> DriverSection:
         tables=tables, drilldown=drill, notes=list(d.notes))
 
 
-def _footprint(b: AnswerBundle) -> Footprint:
+def _footprint(b: AnswerBundle, partial: bool = False) -> Footprint:
+    """A partial's footprint keeps the final one's items, "…" until known, so the line keeps its height at the swap."""
     t, u = b.timings_ms, b.llm_usage
+    pending = "…" if partial else None
     try:
         persona = load_access().persona(b.persona).label
     except KeyError:
@@ -227,8 +229,8 @@ def _footprint(b: AnswerBundle) -> Footprint:
     llm = " · ".join(x for x in (u.get("backend"), cost is not None and f"${cost:.4f}") if x)
     cache = f"{t['cache_hits']} of {t['queries']} queries" if "queries" in t and "cache_hits" in t else None
     pairs = [("Run", b.run_id), ("Persona", persona), ("Data", b.data_version),
-             ("As of", b.as_of and f"{b.as_of:%d %b %Y}"), ("Total", "total" in t and fmt_ms(t["total"])),
-             ("LLM", llm), ("Cache", cache)]
+             ("As of", b.as_of and f"{b.as_of:%d %b %Y}"), ("Total", ("total" in t and fmt_ms(t["total"])) or pending),
+             ("LLM", llm or pending), ("Cache", cache or pending)]
     total = t.get("total") or None
     stages = [StageTime(label=s, value=fmt_ms(t[s]), fraction=total and min(t[s] / total, 1.0)) for s in STAGES if s in t]
     summary = " · ".join(x for x in (stages and f"{len(stages)} steps", "total" in t and fmt_ms(t["total"]),
@@ -274,6 +276,6 @@ def build_view(b: AnswerBundle, *, partial: bool = False) -> View:
                 default_dimension=b.drivers.top_dimension if b.drivers and b.drivers.top_dimension in
                 {k.dimension for k in key_charts} else None,
                 fallback_chart=fallback, drivers=_driver_section(b) if b.drivers else None, recon=recon,
-                footprint=_footprint(b), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None,
+                footprint=_footprint(b, partial), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None,
                 follow_ups=follow_ups(b), headline_parts=headline_parts(b.headline, b.plan and b.plan.metric),
                 markdown=markdown(b))

@@ -2,16 +2,21 @@ import { PenLine } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** In the headline's place while the narrator writes it: the numbers around it are already the real ones. */
+/** In the headline's place while the narrator writes it: the numbers around it are already the real ones. Two of the
+ * headline's own line boxes (22 px at 1.3), so a two-line headline lands without moving what is below it. */
 export function HeadlineSkeleton() {
   return (
-    <div data-testid="summary-skeleton" className="mt-1 grid gap-2">
-      <p role="status" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-        <PenLine aria-hidden className="size-3.5" />
-        Writing the summary…
-      </p>
-      <Skeleton className="h-6 w-[92%]" />
-      <Skeleton className="h-6 w-3/5" />
+    <div data-testid="summary-skeleton" className="mt-1 grid text-[22px] leading-[1.3]">
+      <div className="flex h-[1.3em] items-center gap-3">
+        <p role="status" className="flex shrink-0 items-center gap-1.5 text-[13px] leading-none text-muted-foreground">
+          <PenLine aria-hidden className="size-3.5" />
+          Writing the summary…
+        </p>
+        <Skeleton className="h-[0.8em] flex-1" />
+      </div>
+      <div className="flex h-[1.3em] items-center">
+        <Skeleton className="h-[0.8em] w-3/5" />
+      </div>
     </div>
   );
 }

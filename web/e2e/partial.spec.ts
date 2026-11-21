@@ -48,6 +48,15 @@ test("the numbers show before the written answer, then the headline swaps in", a
   await expect(page.getByTestId("claim")).toHaveCount(0);
   await expect(page.getByTestId("download-bundle")).toHaveCount(0); // a partial bundle is not the run's record
   await chart.evaluate((el) => el.setAttribute("data-drawn", "partial"));
+  // what sits above the summary keeps its size at the swap: the trace is folded already, the footprint keeps its
+  // items, and the action buttons' and confidence reasons' rows are held
+  const box = (testId: string) =>
+    page.getByTestId(testId).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), height: Math.round(r.height) };
+    });
+  const answerTop = () => page.locator("article").evaluate((el) => Math.round(el.getBoundingClientRect().top));
+  const before = { trace: await box("trace"), footprint: (await box("footprint-line")).height, answer: await answerTop() };
 
   await page.evaluate(() => (window as unknown as Held).releaseResult());
   await expect(page.getByTestId("headline")).toHaveText(fixture("explain_change").headline);
@@ -56,4 +65,7 @@ test("the numbers show before the written answer, then the headline swaps in", a
   // the swap kept the chart drawn from the partial: no blank, no re-embed
   await expect(page.getByTestId("key-chart").locator('svg.marks[data-drawn="partial"]')).toBeVisible();
   await expect(page.getByTestId("trace")).not.toHaveAttribute("aria-busy", "true");
+  expect(await box("trace")).toEqual(before.trace);
+  expect((await box("footprint-line")).height).toBe(before.footprint);
+  expect(await answerTop()).toBe(before.answer);
 });

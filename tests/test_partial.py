@@ -77,6 +77,11 @@ def test_build_view_of_a_partial_bundle():
     v = build_view(b, partial=True)
     assert v.partial is True and v.claims == [] and v.evidence and v.key_charts
     assert build_view(backend.load_fixture("explain_change")).partial is False
+    # before narrate there is no total or LLM cost yet: the partial keeps those items as "…", so the line holds
+    early = b.model_copy(update={"timings_ms": {"plan": 2100}, "llm_usage": {}})
+    items = {kv.label: kv.value for kv in build_view(early, partial=True).footprint.items}
+    assert (items["Total"], items["LLM"], items["Cache"]) == ("…", "…", "…")
+    assert not {"Cache"} & {kv.label for kv in build_view(early).footprint.items}   # a final view drops what it lacks
 
 
 # ------------------------------------------------------------------ API stream

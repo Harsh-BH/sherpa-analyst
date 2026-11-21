@@ -69,7 +69,7 @@ function Center() {
             {run.question && <p className="mt-1 text-muted-foreground">Question: {run.question}</p>}
           </Banner>
         )}
-        {result && <BundleView bundle={result.bundle} view={result.view} />}
+        {result && <BundleView bundle={result.bundle} view={result.view} feedback={result.feedback} />}
       </div>
     </>
   );

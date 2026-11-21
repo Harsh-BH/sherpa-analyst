@@ -12,11 +12,22 @@ const THUMBS = [
   { rating: -1, label: "Not helpful", icon: ThumbsDown, testid: "feedback-down", on: "aria-pressed:bg-negative/10 aria-pressed:text-negative" },
 ] as const;
 
-/** Copy a permalink to the run, and rate it. Key it by run id so a new answer starts unrated.
- * The other thumb undoes a rating: the API keeps every rating and the latest wins. */
-export function RunActions({ runId, persona, className }: { runId: string; persona: string; className?: string }) {
+/** Copy a permalink to the run, and rate it. Key it by run id so a new answer starts unrated, and a reopened one
+ * with its latest thumb (`rated`) pressed. The other thumb undoes a rating: the API keeps every rating and the latest
+ * wins. */
+export function RunActions({
+  runId,
+  persona,
+  rated,
+  className,
+}: {
+  runId: string;
+  persona: string;
+  rated?: "up" | "down" | null;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
-  const [rating, setRating] = useState<1 | -1 | null>(null);
+  const [rating, setRating] = useState<1 | -1 | null>(rated === "up" ? 1 : rated === "down" ? -1 : null);
   const [note, setNote] = useState("");
 
   async function copy() {

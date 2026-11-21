@@ -185,6 +185,14 @@
   & > :nth-child(n + 10) { --i: 9; }
 }
 
+/* A result replacing its partial (on a .stagger parent): only the new substance, the headline and claims
+   ([data-swap-in]), rises in; the sections drawn from the partial keep still. */
+@utility stagger-swap {
+  & > :not([data-swap-in]) {
+    animation: none;
+  }
+}
+
 /* Section labels: small uppercase, muted, letter-spaced. */
 @utility section-label {
   font-size: 11px;
