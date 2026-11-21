@@ -218,7 +218,8 @@ def hbars(rows: list[dict], y: str, x: str, title: str | dict, x_axis: dict, col
         bar["encoding"] = {"color": _palette(group, colors)}   # bars only: the labels keep the text colour
     else:
         bar["mark"]["color"] = next(iter(colors.values()))
-    return {**_base(title, rows), "height": {"step": 34 if group else 24}, "encoding": enc,
+    # with group the step is per bar (Vega-Lite steps the offset band when yOffset is discrete)
+    return {**_base(title, rows), "height": {"step": 18 if group else 24}, "encoding": enc,
             "layer": [bar,
                       {"mark": {"type": "text", "align": "left", "dx": 4, "fontSize": 11}, "encoding": {"text": {"field": "_label"}}}]}
 
@@ -226,9 +227,12 @@ def hbars(rows: list[dict], y: str, x: str, title: str | dict, x_axis: dict, col
 def status_bars(rows: list[dict], x: str, time_unit: str, title: str | dict) -> dict:
     """Runs per time bucket (one row per run), stacked by status."""
     xenc = {"field": x, "timeUnit": time_unit, "type": "temporal"}
-    fmt = "%d %b %H:00" if "hours" in time_unit else "%d %b"
+    hourly = "hours" in time_unit
+    fmt = "%d %b %H:00" if hourly else "%d %b"
+    # ticks at least one bucket apart: a half-hour tick would print the hour twice
+    axis = {"format": fmt, "tickCount": {"interval": "hour" if hourly else "day"}}
     return {**_base(title, rows), "height": 160, "mark": {"type": "bar", "cornerRadiusEnd": 2},
-            "encoding": {"x": {**xenc, "title": None, "axis": {"format": fmt}},
+            "encoding": {"x": {**xenc, "title": None, "axis": axis},
                          "y": {"aggregate": "count", "type": "quantitative", "title": "Runs",
                                "axis": {"format": "d", "tickMinStep": 1}},
                          "color": _palette("status", STATUS),
