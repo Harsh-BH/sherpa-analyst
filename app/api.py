@@ -18,7 +18,7 @@ from pydantic import BaseModel, field_validator
 
 from app import backend, overview as home
 from app.explore import ExploreForm, build_explore_plan
-from app.overview import OverviewOk, OverviewUnavailable
+from app.overview import DataHealth, OverviewOk, OverviewUnavailable
 from app.view import KV, STAGE_LABELS, STAGES, ChartView, View, build_view, fmt_ms
 from sherpa import charts
 from sherpa.config import load_access, load_catalog, settings
@@ -180,6 +180,7 @@ class EvalOk(BaseModel):
     tiles: list[EvalTile]
     cases: list[EvalCase]
     charts: list[ChartView]
+    proof: str | None = None   # the home rail's one-line result; None without cases
 
 
 class EvalMissing(BaseModel):
@@ -303,7 +304,7 @@ def ask(req: AskRequest) -> StreamingResponse:
     fixture = None
     if req.fixture is not None:
         path = backend.FIXTURES / f"{req.fixture}.json"
-        if req.fixture in ("eval_latest", "overview") or "/" in req.fixture or not path.is_file():
+        if req.fixture in ("eval_latest", "overview", "data_health") or "/" in req.fixture or not path.is_file():
             raise HTTPException(422, f"unknown fixture {req.fixture!r}")
         if backend.pipeline_status()[0] is None:   # honoured only in fixture mode
             fixture = req.fixture
@@ -329,15 +330,18 @@ def eval_results() -> EvalOk | EvalMissing | EvalError:
         data = json.loads(path.read_text())
         systems, cases = data["systems"], data.get("cases", [])
         sherpa, base = systems.get("sherpa", {}), systems.get("baseline", {})
+        rows = [EvalCase(id=c.get("id"), kind=c.get("kind"), question=c.get("question"),
+                         sherpa_pass=bool(c.get("sherpa", {}).get("pass")), sherpa_detail=c.get("sherpa", {}).get("detail"),
+                         baseline_pass=bool(c.get("baseline", {}).get("pass")),
+                         baseline_detail=c.get("baseline", {}).get("detail")) for c in cases]
+        n = len(rows)
         return EvalOk(
             fixture=fixture, generated_at=_when(data.get("generated_at")), data_version=data.get("data_version"),
             tiles=[EvalTile(label=label, sherpa=_fmt(sherpa.get(k), f), baseline=_fmt(base.get(k), f))
                    for k, label, f in EVAL_METRICS],
-            cases=[EvalCase(id=c.get("id"), kind=c.get("kind"), question=c.get("question"),
-                            sherpa_pass=bool(c.get("sherpa", {}).get("pass")), sherpa_detail=c.get("sherpa", {}).get("detail"),
-                            baseline_pass=bool(c.get("baseline", {}).get("pass")),
-                            baseline_detail=c.get("baseline", {}).get("detail")) for c in cases],
-            charts=_eval_charts(sherpa, base, cases))
+            cases=rows, charts=_eval_charts(sherpa, base, cases),
+            proof=f"Eval: {sum(c.sherpa_pass for c in rows)}/{n} cases vs {sum(c.baseline_pass for c in rows)}/{n} "
+                  "for a naive baseline" if n else None)
     except FileNotFoundError:
         return EvalMissing(path=str(path.relative_to(backend.ROOT)) if path.is_relative_to(backend.ROOT) else str(path))
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
@@ -462,14 +466,24 @@ def runs() -> RunsOk | RunsUnavailable:
 @app.get("/api/overview", responses={422: {"description": "Unknown persona"}})
 def overview(persona: str = DEFAULT_PERSONA) -> OverviewOk | OverviewUnavailable:
     """Home: last 30 days vs the 30 before, governed queries as the persona. Never fails: unavailable says why."""
+    return _home_panel(persona, OverviewOk, "overview", lambda: home.build(persona))
+
+
+@app.get("/api/data-health", responses={422: {"description": "Unknown persona"}})
+def data_health(persona: str = DEFAULT_PERSONA) -> DataHealth | OverviewUnavailable:
+    """The home rail's data health: the governed dq checks over the last 30 days, as the persona."""
+    return _home_panel(persona, DataHealth, "data_health", lambda: home.data_health(persona))
+
+
+def _home_panel(persona: str, model: type[OverviewOk] | type[DataHealth], fixture: str, build: Any) -> Any:
     if persona not in load_access().personas:
         raise HTTPException(422, f"unknown persona {persona!r}")
     try:
         if backend.pipeline_status()[0] is None:   # fixture mode: captured from the real endpoint for one persona
-            o = OverviewOk.model_validate_json((backend.FIXTURES / "overview.json").read_text())
+            o = model.model_validate_json((backend.FIXTURES / f"{fixture}.json").read_text())
             # another persona's scope differs: hide the panel rather than show the fixture persona's numbers
             return o if o.persona == persona else OverviewUnavailable(reason=f"fixture captured for {o.persona} only")
-        return home.build(persona)
+        return build()
     except Exception as e:  # noqa: BLE001 - no DB, no seed, a guard or cost rejection: the UI hides the panel
         detail = str(e).splitlines()[0] if str(e) else "no detail"
         return OverviewUnavailable(reason=f"{type(e).__name__}: {detail}")
