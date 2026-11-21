@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 
 import { ChartCard } from "@/components/charts/chart-card";
 import { VegaChart } from "@/components/charts/vega-chart";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getOverview, type Kpi, type OverviewResponse } from "@/lib/api";
 import { useSherpa } from "@/lib/store";
@@ -103,7 +104,27 @@ export function Overview() {
         onDatumClick={(d) => typeof d._ask === "string" && askWhy(d._ask)}
         caption={
           <span data-testid="trend-caption" className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            Click a day to ask why it moved.
+            Click a day to ask why it moved{data.days.length > 0 ? ", or pick one:" : "."}
+            {/* the keyboard's way to any point: the chart's svg takes no focus. Never holds a value: each pick asks */}
+            {data.days.length > 0 && (
+              <Select value="" onValueChange={askWhy}>
+                <SelectTrigger
+                  size="sm"
+                  data-testid="ask-day"
+                  aria-label="Ask why a day moved"
+                  className="text-foreground data-[size=sm]:h-6"
+                >
+                  <SelectValue placeholder="Pick a day" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="max-h-72">
+                  {data.days.map((d) => (
+                    <SelectItem key={d.question} value={d.question}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {data.unusual.length > 0 && (
               <>
                 <span>Unusual days:</span>

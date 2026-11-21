@@ -100,6 +100,17 @@ test("each answer chart downloads as a PNG", async ({ page }) => {
     chart.getByRole("button", { name: "Download PNG" }).click(),
   ]);
   expect(download.suggestedFilename()).toBe("sherpa-run-fx-explain-0001-payment_method.png");
+
+  // and every evidence chart in the rail, named by its evidence id
+  await page.getByTestId("chip-E2").first().click();
+  const e2 = page.getByTestId("evidence-E2");
+  await expect(e2.locator("svg.marks")).toBeVisible();
+  await e2.locator("svg.marks").hover();
+  const [evidence] = await Promise.all([
+    page.waitForEvent("download"),
+    e2.getByRole("button", { name: "Download PNG" }).click(),
+  ]);
+  expect(evidence.suggestedFilename()).toBe("sherpa-run-fx-explain-0001-E2.png");
 });
 
 test("driver tables show key columns; More columns toggles and is remembered", async ({ page }) => {

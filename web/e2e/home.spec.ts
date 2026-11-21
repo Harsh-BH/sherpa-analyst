@@ -73,6 +73,8 @@ test("clicking a day on the trend asks why it moved", async ({ page }) => {
   await expect(card.getByTestId("trend-caption")).toContainText("Click a day to ask why it moved");
   const points = card.locator("g.ask_points_marks path");
   await expect(points).toHaveCount(days.length);
+  // the card's summary names the chart: its 90-odd marks are not read out one by one
+  expect(await card.locator("svg.marks").evaluate((el) => el.closest('[aria-hidden="true"]') !== null)).toBe(true);
   await points.last().click();
   await expect(page.getByTestId("trace")).toBeVisible();
   await expect(page.getByTestId("question")).toHaveValue(days.at(-1)!._ask!);
@@ -80,6 +82,22 @@ test("clicking a day on the trend asks why it moved", async ({ page }) => {
     /^Why did success rate (fall|rise) on \d{1,2} [A-Z][a-z]{2} compared with the day before\?$/,
   );
   await expect.poll(() => asked.length).toBe(1);
+});
+
+test("any trend day can be asked from the keyboard", async ({ page }) => {
+  const days: { label: string; question: string }[] = fixture("overview").days;
+  const asked = askedQuestions(page);
+  await open(page);
+  const pick = page.getByTestId("ask-day");
+  await expect(pick).toHaveAccessibleName("Ask why a day moved");
+  await pick.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("option")).toHaveText(days.map((d) => d.label));
+  await page.getByRole("option", { name: days[2].label }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("trace")).toBeVisible();
+  await expect(page.getByTestId("question")).toHaveValue(days[2].question);
+  await expect.poll(() => asked).toEqual([days[2].question]);
 });
 
 test("an unusual day is a keyboard-reachable button that asks", async ({ page }) => {

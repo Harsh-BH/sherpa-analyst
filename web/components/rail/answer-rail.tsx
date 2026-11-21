@@ -2,7 +2,7 @@
 
 import { ChevronRight, Download } from "lucide-react";
 
-import { download } from "@/components/answer/answer-view";
+import { download, fileName } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
 import { stageLabel } from "@/components/answer/trace";
 import { EvidenceEntry } from "@/components/rail/evidence-entry";
@@ -92,7 +92,7 @@ export function AnswerRail({ bundle, view }: { bundle: AnswerBundle; view: View 
         {view.evidence.length ? (
           <ul>
             {view.evidence.map((e) => (
-              <EvidenceEntry key={e.id} e={e} />
+              <EvidenceEntry key={e.id} e={e} name={fileName(bundle.run_id)} />
             ))}
           </ul>
         ) : (

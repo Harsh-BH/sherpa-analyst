@@ -20,6 +20,9 @@ type ChartProps = {
   onDatumClick?: (datum: Datum) => void;
   /** When set, a "Download PNG" button (on hover and focus) saves the chart as `<downloadName>.png`. */
   downloadName?: string;
+  /** The drawing is hidden from assistive tech: a parent names the chart (ChartCard's summary), so Vega's own
+   * per-mark descriptions (dates it formats itself) would only repeat it, mark by mark. */
+  decorative?: boolean;
 };
 
 const MAPS = { light: new Map(Object.entries(COLORS.light)), dark: new Map(Object.entries(COLORS.dark)) };
@@ -33,7 +36,7 @@ function recolor(v: unknown, map: Map<string, string>): unknown {
   return v;
 }
 
-function Chart({ spec: next, lib, onDatumClick, downloadName }: ChartProps & { lib: VegaEmbed }) {
+function Chart({ spec: next, lib, onDatumClick, downloadName, decorative }: ChartProps & { lib: VegaEmbed }) {
   // The spec by content: an equal one from a newer response (an answer's result after its partial) keeps the drawn
   // chart instead of blanking and re-embedding it.
   const [spec, setSpec] = useState(next);
@@ -112,11 +115,12 @@ function Chart({ spec: next, lib, onDatumClick, downloadName }: ChartProps & { l
 
   return (
     <div className="group/chart relative min-w-0">
-      <div ref={ref} className="w-full min-w-0" />
+      <div ref={ref} aria-hidden={decorative || undefined} className="w-full min-w-0" />
       {failed?.spec === spec && (
         <p className="text-xs text-muted-foreground wrap-anywhere">This chart could not be drawn: {failed.message}</p>
       )}
-      {/* After the chart in the DOM, and only once it has drawn, so its icon is never taken for the chart's svg */}
+      {/* After the chart in the DOM, and only once it has drawn, so its icon is never taken for the chart's svg.
+          On a phone or touch screen it is always shown, so it sits under the chart, not on its legend. */}
       {downloadName && view && (
         <Button
           variant="ghost"
@@ -124,7 +128,7 @@ function Chart({ spec: next, lib, onDatumClick, downloadName }: ChartProps & { l
           aria-label="Download PNG"
           title="Download PNG"
           onClick={download}
-          className="absolute top-0 right-0 bg-card/80 text-muted-foreground transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover/chart:opacity-100 pointer-fine:focus-visible:opacity-100"
+          className="absolute top-0 right-0 bg-card/80 text-muted-foreground transition-opacity max-md:static max-md:ml-auto max-md:flex pointer-coarse:static pointer-coarse:ml-auto pointer-coarse:flex pointer-fine:opacity-0 pointer-fine:group-hover/chart:opacity-100 pointer-fine:focus-visible:opacity-100"
         >
           <Download />
         </Button>
