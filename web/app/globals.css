@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Inspector Rail tokens (spec: Design -> Tokens). Chrome is grey; hue only for data quality and confidence. */
+:root {
+  --background: #f6f6f7;
+  --foreground: #111214;
+  --card: #ffffff;
+  --card-foreground: #111214;
+  --popover: #ffffff;
+  --popover-foreground: #111214;
+  --primary: #111214;
+  --primary-foreground: #ffffff;
+  --secondary: #efeff1;
+  --secondary-foreground: #111214;
+  --muted: #efeff1;
+  --muted-foreground: #5a5e66;
+  --accent: #efeff1; /* shadcn's hover fill, grey; the blue accent is --accent-blue */
+  --accent-foreground: #111214;
+  --accent-blue: #2456c4;
+  --positive: #167a3c;
+  --negative: #c22f2a;
+  --warning: #8c5800;
+  --destructive: #c22f2a;
+  --border: #e1e2e5;
+  --input: #8c8f95; /* 3.0:1 on bg, 3.2:1 on surface (WCAG 1.4.11) */
+  --ring: #2456c4;
+  --radius: 0.5rem;
+  --sidebar: #eeeef0;
+  --sidebar-foreground: #111214;
+  --sidebar-primary: #111214;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #111214;
+  --sidebar-border: #e1e2e5;
+  --sidebar-ring: #2456c4;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #0a0b0d;
+  --foreground: #edeef0;
+  --card: #131417;
+  --card-foreground: #edeef0;
+  --popover: #131417;
+  --popover-foreground: #edeef0;
+  --primary: #edeef0;
+  --primary-foreground: #131417;
+  --secondary: #1c1e22;
+  --secondary-foreground: #edeef0;
+  --muted: #1c1e22;
+  --muted-foreground: #9a9ea7;
+  --accent: #1c1e22;
+  --accent-foreground: #edeef0;
+  --accent-blue: #7fa8ff;
+  --positive: #5ed18e;
+  --negative: #ff7b74;
+  --warning: #f0bf4f;
+  --destructive: #ff7b74;
+  --border: #25272c;
+  --input: #5e626a; /* 3.0:1 on surface, 3.2:1 on bg */
+  --ring: #7fa8ff;
+  --sidebar: #08090a;
+  --sidebar-foreground: #edeef0;
+  --sidebar-primary: #edeef0;
+  --sidebar-primary-foreground: #131417;
+  --sidebar-accent: #131417;
+  --sidebar-accent-foreground: #edeef0;
+  --sidebar-border: #25272c;
+  --sidebar-ring: #7fa8ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-blue: var(--accent-blue);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground tabular-nums;
+  }
+}

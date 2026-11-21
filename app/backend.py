@@ -10,7 +10,7 @@ import re
 import uuid
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from sherpa.config import load_access
 from sherpa.contracts import AnalysisPlan, AnswerBundle
@@ -62,12 +62,13 @@ def pipeline_status() -> tuple[Any, str | None]:
     return pipeline, None
 
 
-def answer(question: str, persona: str, plan: AnalysisPlan | None = None) -> AnswerBundle:
+def answer(question: str, persona: str, plan: AnalysisPlan | None = None,
+           on_stage: Callable[[str], None] | None = None) -> AnswerBundle:
     pipe, _ = pipeline_status()
     if pipe is None:
         return fixture_answer(question, persona, plan)
     try:
-        return pipe.answer(question, persona, plan=plan)
+        return pipe.answer(question, persona, plan=plan, on_stage=on_stage)
     except Exception as e:  # noqa: BLE001 - the contract says answer() never raises; if it does, keep a run id
         return AnswerBundle(run_id=f"ui-{uuid.uuid4().hex[:12]}", question=question, persona=persona,
                             status="error", plan=plan, error=f"{type(e).__name__}: {e}")

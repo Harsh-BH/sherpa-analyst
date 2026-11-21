@@ -14,7 +14,7 @@ the protocol (docs/agents/PROTOCOL.md). Do not work around it silently.
 | `sherpa/guard.py`, `sherpa/compiler.py`, `sherpa/db.py`, `sherpa/runs.py`, `tests/test_guard.py`, `tests/test_compiler.py`, `tests/test_db.py`, `tests/test_runs.py` | **sql** |
 | `sherpa/drivers.py`, `sherpa/dq.py`, `sherpa/reconcile.py`, `tests/test_drivers.py`, `tests/test_dq.py`, `tests/test_reconcile.py`, `eval/` (wave 2) | **analytics** |
 | `sherpa/llm.py`, `sherpa/planner.py`, `sherpa/triage.py`, `sherpa/narrate.py`, `sherpa/prompts/`, `tests/test_llm.py`, `tests/test_planner.py`, `tests/test_triage.py`, `tests/test_narrate.py` | **ai** |
-| `app/`, `sherpa/charts.py`, `.streamlit/`, `tests/fixtures/`, `tests/test_charts.py`, `tests/test_app.py` | **ui** |
+| `app/`, `web/`, `sherpa/charts.py`, `tests/fixtures/`, `tests/test_charts.py`, `tests/test_api.py`, `tests/test_view.py`, `tests/test_backend.py`, `tests/test_chart_colors.py` | **ui** |
 
 ## 1. Database (db/schema.sql, db/access.yaml)
 
@@ -160,8 +160,9 @@ def bars(rows: list[dict], x: str, y: str, fmt: ValueFormat, color: str | None =
 def trend(rows: list[dict], x: str, y: str, fmt: ValueFormat, color: str | None = None) -> dict
 def recon_bridge(recon: ReconResult) -> dict
 
-# app/streamlit_app.py: calls only sherpa.pipeline.answer(...), sherpa.config.load_access/load_catalog,
-#                       sherpa.runs.recent_runs/run_stats and reads eval/results/latest.json
+# app/ (FastAPI api.py):   calls only sherpa.pipeline.answer(...), sherpa.config.load_access/load_catalog,
+#                          sherpa.runs.recent_runs/run_stats and reads eval/results/latest.json
+# web/ (Next.js):          talks only to app/api.py over HTTP; every number it shows is a string from app/view.py
 ```
 
 ## 6. master (integration)

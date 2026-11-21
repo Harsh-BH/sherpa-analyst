@@ -17,19 +17,32 @@ services:
       timeout: 3s
       retries: 20
 
-  # Streamlit app. Inside the compose network the DB is db:5432 (the host port 5433 is only for the host).
-  app:
+  # FastAPI over the pipeline, reachable inside the compose network only (no host port).
+  # Inside the network the DB is db:5432 (the host port 5433 is only for the host).
+  api:
     build: .
-    container_name: sherpa-app
+    container_name: sherpa-api
     env_file: .env
     environment:
       SHERPA_DB_HOST: db
       SHERPA_DB_PORT: "5432"
-    ports:
-      - "127.0.0.1:8501:8501"
     depends_on:
       db:
         condition: service_healthy
+
+  # Next.js UI on 127.0.0.1:3000; it proxies /api/* to the api service.
+  web:
+    build:
+      context: ./web
+      args:
+        SHERPA_API_URL: http://api:8000 # rewrites are resolved at build time, so the build needs it too
+    container_name: sherpa-web
+    environment:
+      SHERPA_API_URL: http://api:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
 
   # One-shot seed: docker compose run --rm seed   (SEED=7 SHERPA_DB_NAME=... to vary)
   seed:

@@ -12,7 +12,7 @@ explained by mix shift**, an ambiguous period or denominator, and an expensive o
 never sees row-level data.
 
 ```
- persona ─▶ Streamlit: Ask | Explore | Eval | Runs
+ persona ─▶ Next.js UI ─▶ FastAPI: Ask | Explore | Eval | Runs
                 │ question, persona                                  ▲ AnswerBundle
         ┌───────▼────────┐  AnalysisPlan   ┌───────────────────┐      │
         │ planner (LLM)  ├───────────────▶ │ triage             ├─ clarify / explained refusal ─▶ UI
@@ -35,6 +35,25 @@ never sees row-level data.
 
 Routes: **catalog** = governed metric compiled to SQL (trusted). **sql** = LLM-written SELECT against
 `analytics.*`, labelled "unverified", confidence capped at medium, and sent through the same guard.
+
+## UI layer
+
+The browser never calls the pipeline. `web/` is a Next.js app that proxies `/api/*` to `app/api.py`, a FastAPI service
+on `127.0.0.1:8000`:
+
+- **Ask streams.** `POST /api/ask` runs `pipeline.answer()` in a worker thread and sends one SSE `stage` event per
+  `on_stage` call, then a `result` event with the `AnswerBundle` and its view. The proxy runs uncompressed so stages
+  arrive as they happen, and the trace shows each one with its elapsed time.
+- **Numbers are formatted once, in Python.** `app/view.py` turns the bundle into display strings with `format_value`;
+  the front end never computes or formats a number, so the screen cannot disagree with the bundle.
+- **Data stays inert.** Data-derived text renders only as React text nodes, with no raw HTML and no URLs built from data.
+  Data-quality banners sit above the headline and are never collapsed.
+- **Charts** are the `sherpa/charts.py` Vega-Lite specs drawn by vega-embed. Their colours are remapped per theme through
+  `web/lib/chart-colors.json`, and a test fails if `charts.py` emits a colour the map does not cover.
+- **Layout:** a sidebar (persona, pages, data version, LLM backend), the answer in the centre, and an inspector rail
+  (Plan · Evidence · Footprints). Selecting an evidence chip opens its rail entry and highlights every claim that cites it.
+- **Fixture mode:** `SHERPA_UI_FIXTURES=1` makes the API answer from `tests/fixtures/`; the Playwright suite in
+  `web/e2e/` runs against it.
 
 ## Safety in two layers
 

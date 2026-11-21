@@ -30,24 +30,34 @@ So Sherpa is a **hybrid**:
 
 ## Quickstart
 
-Prerequisites: Docker, [uv](https://docs.astral.sh/uv/), and either an `ANTHROPIC_API_KEY` or a logged-in `claude` CLI. With neither, Explore mode still works and needs no LLM.
+Prerequisites: Docker, [uv](https://docs.astral.sh/uv/), Node 26 with pnpm, and either an `ANTHROPIC_API_KEY` or a logged-in `claude` CLI. With neither, Explore mode still works and needs no LLM.
 
 ```bash
 cp .env.example .env                 # set POSTGRES_PASSWORD and SHERPA_ROLE_PASSWORD; optionally ANTHROPIC_API_KEY
 uv sync
+pnpm -C web install                  # Next.js UI dependencies
 make up                              # Postgres 17 on localhost:5433
 make seed                            # 60 days, ~1.56M payments, planted causes, roles + RLS (~30 s)
 make seed-eval                       # second seed (7) in database sherpa_s7, for the eval
-make app                             # http://localhost:8501
-make test                            # unit + DB tests
+make app                             # API on 127.0.0.1:8000 + UI on http://localhost:3000
+make test                            # unit, DB and API tests
+make e2e                             # browser tests in fixture mode (system Chrome)
+pnpm -C web check                    # SSE stream parser self-check, no server needed
 make eval                            # Sherpa vs a naive text-to-SQL baseline on both seeds
 ```
 
-Everything in Docker (needs `ANTHROPIC_API_KEY` in `.env` for Ask mode):
+`make app` runs both servers and stops the API when the UI exits; `make api` and `make web` run them in two terminals
+instead. The UI proxies `/api/*` to `SHERPA_API_URL` (default `http://127.0.0.1:8000`). `SHERPA_UI_FIXTURES=1 make api`
+serves canned answers with no DB or LLM.
+
+Everything in Docker (needs `ANTHROPIC_API_KEY` in `.env` for Ask mode), UI on http://localhost:3000:
 
 ```bash
-docker compose up -d db && docker compose run --rm seed && docker compose up app
+docker compose up -d db && docker compose run --rm seed && docker compose up api web
 ```
+
+The `api` and `web` images were not built on the build machine because the disk was nearly full. Both Dockerfiles are
+written and the compose file passes `docker compose config`, but this path is untested; the local `make app` path is the tested one.
 
 ## What to try (the 3-minute demo)
 
@@ -66,7 +76,7 @@ docker compose up -d db && docker compose run --rm seed && docker compose up app
 ## How it works
 
 ```
- persona ─▶ Streamlit: Ask | Explore | Eval | Runs
+ persona ─▶ Next.js UI ─▶ FastAPI (stages over SSE): Ask | Explore | Eval | Runs
                 │ question                                        ▲ AnswerBundle (claims, evidence, charts, DQ, confidence)
         ┌───────▼────────┐  AnalysisPlan (typed JSON,   ┌───────────────────┐
         │ planner (LLM)  ├──── catalog names only) ───▶ │ triage             ├─ clarify / explained refusal
@@ -206,8 +216,8 @@ from the loaded tables, and the load rolls back if the two disagree. All bank an
 - **Persona login is a selector, not authentication** (a demo). Real deployment would map SSO identities to the DB roles.
 - **LLM backends.** The Anthropic API (`ANTHROPIC_API_KEY`) or the local `claude` CLI. The CLI path was used for development and evaluation; the API path is unit-tested but was not run live here (no key on the build machine).
 - **Volume leak through planner statistics.** These leak per-region volume to anyone with a direct DB login; personas never get one.
-- **Streamlit is single-process.** The cache is per process.
-- **Docker coverage.** The app image was built and verified (health endpoint, plus a full pipeline answer from inside the container against the compose DB). The one-shot `seed` service was not run on the build machine (disk space), so the local `make seed` path is the tested one.
+- **The API is one process.** The query cache is per process.
+- **Docker coverage.** The Python image was built and verified with the earlier Streamlit UI (health endpoint, plus a full pipeline answer from inside the container against the compose DB). The `api` service (same image, uvicorn instead of Streamlit) and the Next.js `web` image have not been built, and the one-shot `seed` service was not run on the build machine (disk space). The local `make seed` and `make app` paths are the tested ones.
 
 ## Repository layout
 
@@ -215,11 +225,12 @@ from the loaded tables, and the load rolls back if the two disagree. All bank an
 sherpa/           contracts.py (shared types) · config.py · catalog.yaml (governed metrics)
                   planner.py · triage.py · compiler.py · guard.py · db.py · runs.py
                   drivers.py · dq.py · reconcile.py · narrate.py · charts.py · pipeline.py · llm.py
-app/              Streamlit UI (Ask, Explore, Eval, Runs)
+app/              FastAPI for the UI: api.py (ask over SSE, meta, explore, eval, runs) · view.py (every number as a string)
+web/              Next.js UI (Ask, Explore, Eval, Runs) · e2e/ (Playwright, fixture mode)
 db/               schema.sql · access.yaml · roles.py (grants + RLS from access.yaml) · build_analytics.sql
 gen/              seeded generator + planted scenarios + ground truth
 eval/             gold SQL, cases, naive baseline, runner
-tests/            unit, DB, end-to-end pipeline and app tests
+tests/            unit, DB, end-to-end pipeline and API tests
 docs/             ARCHITECTURE.md · CONTRACTS.md · TASKS.md · agents/ (how it was built)
 ```
 
@@ -232,8 +243,9 @@ contract files and question/answer files, not chat. The master reviewed and merg
 
 ## Credits and licences
 
-**Dependencies:** sqlglot (MIT), psycopg (LGPL), pandas, numpy, scipy, statsmodels (BSD), pydantic (MIT), Streamlit (Apache-2.0),
-Altair (BSD), anthropic SDK (MIT).
+**Dependencies:** sqlglot (MIT), psycopg (LGPL), pandas, numpy, scipy, statsmodels (BSD), pydantic (MIT), FastAPI (MIT),
+uvicorn (BSD), anthropic SDK (MIT), Altair (BSD, tests only). UI: Next.js, React, Tailwind CSS, Radix UI, shadcn/ui,
+react-resizable-panels (MIT), lucide-react (ISC), Vega, Vega-Lite and vega-embed (BSD).
 
 **Adapted code (with attribution in the files):**
 - Result-set comparison from [defog-ai/sql-eval](https://github.com/defog-ai/sql-eval) (Apache-2.0).
