@@ -12,7 +12,7 @@ from statistics import mean
 from typing import Any, Iterator, Literal, get_args
 from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
@@ -39,6 +39,7 @@ EVAL_METRICS = [  # key, label, format
 SYSTEMS = {"Sherpa": charts.MIX, "Baseline": charts.GREY}   # eval system label -> chart colour
 PCT_AXIS = {"title": None, "format": ".0%", "values": [0, 0.25, 0.5, 0.75, 1]}
 IST = ZoneInfo("Asia/Kolkata")
+FEEDBACK = {1: "up", -1: "down"}   # app.run_feedback.rating -> RunRow.feedback
 
 
 def _fmt(v: Any, fmt: str) -> str:
@@ -203,6 +204,7 @@ class RunRow(BaseModel):
     total: str
     cost: str
     footprint: list[KV]
+    feedback: Literal["up", "down"] | None = None   # the latest thumb, if any
 
 
 class RunsOk(BaseModel):
@@ -215,6 +217,25 @@ class RunsOk(BaseModel):
 class RunsUnavailable(BaseModel):
     status: Literal["unavailable"] = "unavailable"
     message: str
+
+
+class HistoryItem(BaseModel):
+    """A run the persona can reopen with GET /api/runs/{run_id}."""
+    run_id: str
+    question: str
+    status: str
+    confidence: str | None
+    asked_at: str   # formatted, IST ('fixture' in fixture mode)
+
+
+class FeedbackRequest(BaseModel):
+    persona: str
+    rating: Literal[-1, 1]
+
+
+class FeedbackSaved(BaseModel):
+    run_id: str
+    feedback: Literal["up", "down"]
 
 
 # ------------------------------------------------------------------ routes
@@ -440,7 +461,8 @@ def _run_row(r: dict) -> RunRow:
     return RunRow(run_id=str(r.get("run_id")), asked_at=f"{asked:%d %b %Y %H:%M}" if isinstance(asked, datetime) else str(asked),
                   persona=str(r.get("persona")), question=str(r.get("question")), status=str(r.get("status")),
                   route=str(r.get("route") or "n/a"), confidence=str(r.get("confidence") or "n/a"),
-                  total=fmt_ms(t.get("total")), cost=_fmt(cost, "usd"), footprint=footprint)
+                  total=fmt_ms(t.get("total")), cost=_fmt(cost, "usd"), footprint=footprint,
+                  feedback=FEEDBACK.get(r.get("rating")))
 
 
 @app.get("/api/runs")
@@ -454,7 +476,8 @@ def runs() -> RunsOk | RunsUnavailable:
                                        "It needs the seeded database and sherpa.runs.")
     tiles = [("Runs", "runs", "int"), ("p50 latency", "p50_ms", "ms"), ("p95 latency", "p95_ms", "ms"),
              ("LLM cost", "llm_cost_usd", "usd"), ("Refusal rate", "refusal_rate", "pct"),
-             ("Clarify rate", "clarify_rate", "pct"), ("Cache hit rate", "cache_hit_rate", "pct")]
+             ("Clarify rate", "clarify_rate", "pct"), ("Cache hit rate", "cache_hit_rate", "pct"),
+             ("Helpful", "helpful_rate", "pct")]
     return RunsOk(tiles=[KV(label=label, value=_fmt(stats.get(k), f)) for label, k, f in tiles],
                   recent=[_run_row(r) for r in recent], charts=_runs_charts(series))
 
@@ -473,3 +496,49 @@ def overview(persona: str = DEFAULT_PERSONA) -> OverviewOk | OverviewUnavailable
     except Exception as e:  # noqa: BLE001 - no DB, no seed, a guard or cost rejection: the UI hides the panel
         detail = str(e).splitlines()[0] if str(e) else "no detail"
         return OverviewUnavailable(reason=f"{type(e).__name__}: {detail}")
+
+
+# ------------------------------------------------------------------ history, permalinks, feedback
+# Persona scope is the boundary: a run of another persona, a missing run and a run without a saved bundle all
+# give the same bare 404. Fixture mode reads backend.fixture_runs and stores nothing.
+def _fixture_run(run_id: str, persona: str) -> AnswerBundle | None:
+    return next((b for b in backend.fixture_runs(persona) if b.run_id == run_id), None)
+
+
+@app.get("/api/history", responses={422: {"description": "Unknown persona"}})
+def history(persona: str, limit: int = Query(20, ge=1, le=50)) -> list[HistoryItem]:
+    """The persona's own app runs that can be reopened, newest first."""
+    if persona not in load_access().personas:
+        raise HTTPException(422, f"unknown persona {persona!r}")
+    if backend.pipeline_status()[0] is None:
+        return [HistoryItem(run_id=b.run_id, question=b.question, status=b.status, confidence=b.confidence,
+                            asked_at="fixture") for b in backend.fixture_runs(persona)][:limit]
+    from sherpa import runs as run_log
+    return [HistoryItem(run_id=r["run_id"], question=r["question"], status=r["status"], confidence=r["confidence"],
+                        asked_at=f"{_local(r['asked_at']):%d %b %Y %H:%M}") for r in run_log.history(persona, limit)]
+
+
+@app.get("/api/runs/{run_id}", responses={404: {"description": "No such run for this persona"}})
+def get_run(run_id: str, persona: str) -> AskResult:
+    """A saved run as the same AskResult /api/ask streams, its view rebuilt from the stored bundle."""
+    if backend.pipeline_status()[0] is None:
+        bundle = _fixture_run(run_id, persona)
+    else:
+        from sherpa import runs as run_log
+        bundle = run_log.get_run(run_id, persona)
+    if bundle is None:
+        raise HTTPException(404)
+    return AskResult(bundle=bundle, view=build_view(bundle))
+
+
+@app.post("/api/runs/{run_id}/feedback", responses={404: {"description": "No such run for this persona"}})
+def run_feedback(run_id: str, req: FeedbackRequest) -> FeedbackSaved:
+    """Thumbs up (1) or down (-1). Insert-only: the latest rating wins when read."""
+    if backend.pipeline_status()[0] is None:
+        found = _fixture_run(run_id, req.persona) is not None
+    else:
+        from sherpa import runs as run_log
+        found = run_log.save_feedback(run_id, req.persona, req.rating)
+    if not found:
+        raise HTTPException(404)
+    return FeedbackSaved(run_id=run_id, feedback=FEEDBACK[req.rating])

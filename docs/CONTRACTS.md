@@ -21,7 +21,7 @@ the protocol (docs/agents/PROTOCOL.md). Do not work around it silently.
 * Postgres 17, database `sherpa`, `localhost:5433`, superuser `postgres` / `$POSTGRES_PASSWORD`.
 * Persona login roles: `access.yaml` `personas.*.db_role` (`sherpa_head`, `sherpa_rm_south`), password `$SHERPA_ROLE_PASSWORD`.
   They can only `SELECT` the `exposed_tables` columns in schema `analytics`, as row-level security on `region` allows. Their sessions default to `default_transaction_read_only=on`, `statement_timeout=5s` and `search_path=analytics`.
-* App role `sherpa_app` (same password): `INSERT, SELECT` on `app.runs` only.
+* App role `sherpa_app` (same password): `INSERT, SELECT` on `app.runs` and `app.run_feedback` only (no UPDATE or DELETE: feedback is insert-only, the latest row per run wins).
 * `analytics.data_version` has exactly one row, and its `as_of` is "today" for relative windows. Data range: `data_start = 2026-09-21` through `as_of = 2026-11-19` (60 days) for every seed.
 * Settlement semantics: `cycle_date(created_at) = IST date of (created_at + 1 hour)`, i.e. a 23:00 IST cutoff. `settlement_date = cycle_date + 1`, and `net = gross - refund - fee`. Settlements are generated from the *true* sales, before any ingestion loss.
 
@@ -68,7 +68,11 @@ def data_version(persona: str) -> dict        # {"version", "seed", "data_start"
 def save_run(bundle: AnswerBundle) -> None    # as sherpa_app; never raises into the caller (logs instead)
 def recent_runs(limit: int = 50) -> list[dict]
 def run_series(limit: int = 2000) -> list[dict]   # oldest first: run_id, asked_at, status, timings_ms, cost_usd (Runs charts)
-def run_stats() -> dict                       # {"runs", "p50_ms", "p95_ms", "refusal_rate", "clarify_rate", "cache_hit_rate", "llm_cost_usd"}
+def run_stats() -> dict                       # {"runs", "p50_ms", "p95_ms", "refusal_rate", "clarify_rate", "cache_hit_rate", "llm_cost_usd", "helpful_rate"}
+#   app.runs.bundle keeps the whole AnswerBundle. These three return a run only to its own persona, and only when it has a bundle:
+def history(persona: str, limit: int = 20) -> list[dict]          # app runs, newest first: run_id, question, status, confidence, asked_at
+def get_run(run_id: str, persona: str) -> AnswerBundle | None
+def save_feedback(run_id: str, persona: str, rating: int) -> bool  # 1 or -1 into app.run_feedback; False = not found
 ```
 
 ## 3. analytics agent
@@ -163,7 +167,7 @@ def trend(rows: list[dict], x: str, y: str, fmt: ValueFormat, color: str | None 
 def recon_bridge(recon: ReconResult) -> dict
 
 # app/ (FastAPI api.py):   calls only sherpa.pipeline.answer(...), sherpa.config.load_access/load_catalog,
-#                          sherpa.runs.recent_runs/run_series/run_stats, sherpa.charts (dashboard specs),
+#                          sherpa.runs.recent_runs/run_series/run_stats/history/get_run/save_feedback, sherpa.charts,
 #                          and reads eval/results/latest.json
 # app/overview.py (home):  sherpa.compiler.compile_metric -> sherpa.db.run_query as the persona (the governed path:
 #                          guard, RLS, cost gate); no LLM, no app.runs write; cached per (persona, data_version)
