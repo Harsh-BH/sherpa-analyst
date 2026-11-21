@@ -63,9 +63,11 @@ def run_query(sql: str, persona: str, *, max_rows: int = MAX_ROWS, timeout_ms: i
 #   Raises QueryRejected(stage=parse|policy|cost|timeout|access|db).
 def data_version(persona: str) -> dict        # {"version", "seed", "data_start", "as_of"} (dates as date)
 
-# sherpa/runs.py
+# sherpa/runs.py — app.runs.source is $SHERPA_RUN_SOURCE at save time (default 'app'; pytest 'test', eval/run.py 'eval').
+#   The readers return source = 'app' rows only, so test and eval traffic never reaches the Runs page.
 def save_run(bundle: AnswerBundle) -> None    # as sherpa_app; never raises into the caller (logs instead)
 def recent_runs(limit: int = 50) -> list[dict]
+def run_series(limit: int = 2000) -> list[dict]   # oldest first: run_id, asked_at, status, timings_ms, cost_usd (Runs charts)
 def run_stats() -> dict                       # {"runs", "p50_ms", "p95_ms", "refusal_rate", "clarify_rate", "cache_hit_rate", "llm_cost_usd"}
 ```
 
@@ -161,7 +163,10 @@ def trend(rows: list[dict], x: str, y: str, fmt: ValueFormat, color: str | None 
 def recon_bridge(recon: ReconResult) -> dict
 
 # app/ (FastAPI api.py):   calls only sherpa.pipeline.answer(...), sherpa.config.load_access/load_catalog,
-#                          sherpa.runs.recent_runs/run_stats and reads eval/results/latest.json
+#                          sherpa.runs.recent_runs/run_series/run_stats, sherpa.charts (dashboard specs),
+#                          and reads eval/results/latest.json
+# app/overview.py (home):  sherpa.compiler.compile_metric -> sherpa.db.run_query as the persona (the governed path:
+#                          guard, RLS, cost gate); no LLM, no app.runs write; cached per (persona, data_version)
 # web/ (Next.js):          talks only to app/api.py over HTTP; every number it shows is a string from app/view.py
 ```
 
