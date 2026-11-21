@@ -1,6 +1,6 @@
 """Display-ready view of an AnswerBundle: every number is already a string, so the UI only draws.
 
-Pure port of the formatting logic in app/render.py (which stays until the Streamlit UI is removed)."""
+Ported from the former Streamlit renderer (app/render.py), so tables and charts read as they did there."""
 from __future__ import annotations
 
 import math

@@ -107,7 +107,7 @@ def test_ask_unexpected_error_keeps_a_run_id(monkeypatch):
     assert b["status"] == "error" and b["run_id"].startswith("ui-") and "ZeroDivisionError" in b["error"]
 
 
-def test_explore_plan_matches_streamlit():
+def test_explore_plan_builds_question_and_plan():
     form = {"intent": "breakdown", "metric": "success_rate", "dimensions": ["payment_method"], "window": "last_7_days",
             "filters": [{"dimension": "region", "values": ["South"]}]}
     r = client.post("/api/explore/plan", json=form).json()

@@ -14,7 +14,7 @@ def test_claims_carry_rendered_text_and_dedup_ids():
     assert 1 in build_view(b).evidence[0].cited_by
 
 
-def test_tables_match_streamlit_formatting():
+def test_tables_format_values_like_the_claims():
     def col(t, name):
         return [r[t.columns.index(name)] for r in t.rows]
     e1, e2, _ = build_view(backend.load_fixture("explain_change")).evidence

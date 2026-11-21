@@ -7,7 +7,6 @@ data/*
 !data/.gitkeep
 eval/results/*
 !eval/results/.gitkeep
-.streamlit/secrets.toml
 !eval/results/latest.json
 web/node_modules
 web/.next
