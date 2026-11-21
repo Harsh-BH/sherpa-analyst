@@ -52,13 +52,13 @@ function Pick({
 
 /** The plan the form describes, fetched from the API (debounced 250 ms); `plan` is null while it is out of date or invalid. */
 export function useExplorePlan(form: api.ExploreForm) {
-  const [state, setState] = useState<{ plan: api.ExplorePlan | null; error: string | null }>({ plan: null, error: null });
+  const [state, setState] = useState<{ form: api.ExploreForm | null; plan: api.ExplorePlan | null; error: string | null }>({ form: null, plan: null, error: null });
   useEffect(() => {
     let live = true;
     const t = setTimeout(() => {
       api.explorePlan(form).then(
-        (plan) => live && setState({ plan, error: null }),
-        (e) => live && setState({ plan: null, error: e instanceof Error ? e.message : String(e) }),
+        (plan) => live && setState({ form, plan, error: null }),
+        (e) => live && setState({ form, plan: null, error: e instanceof Error ? e.message : String(e) }),
       );
     }, 250);
     return () => {
@@ -66,7 +66,8 @@ export function useExplorePlan(form: api.ExploreForm) {
       clearTimeout(t);
     };
   }, [form]);
-  return state;
+  // A result only counts for the exact form it was fetched for; while the form has moved on, report nothing.
+  return state.form === form ? state : { plan: null, error: null };
 }
 
 /** The Explore form: a governed plan built from catalog choices. Reports the plan up; "Run plan" asks it. */
