@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from app.answer_extras import KEY_COLUMNS, FollowUp, HeadlinePart, drillable_waterfall, follow_ups, headline_parts, markdown
 from sherpa import charts
 from sherpa.config import load_access, load_catalog
 from sherpa.contracts import AnswerBundle, DimensionDecomposition, Evidence, SegmentEffect, format_value
@@ -25,6 +26,7 @@ class KV(BaseModel):
 class Table(BaseModel):
     columns: list[str]
     rows: list[list[str]]
+    key_columns: list[str] = []   # shown by default when set; the rest behind "More columns"
 
 
 class ClaimView(BaseModel):
@@ -98,6 +100,9 @@ class View(BaseModel):
     recon: ReconView | None
     footprint: Footprint
     as_of: str | None
+    follow_ups: list[FollowUp] = []          # "Ask next" chips; each carries the plan it runs
+    headline_parts: list[HeadlinePart] = []  # the headline cut into text and number chips; joins back exactly
+    markdown: str = ""                       # the answer for "Copy answer"
 
 
 def fmt_ms(ms: int | float | None) -> str:
@@ -177,7 +182,8 @@ def _effects_table(effects: list[tuple[str, SegmentEffect]]) -> Table:
                  "total (pp)", "z", "q (BH)", "supported", "significant", "material"],
         rows=[[label, pct(e.share0), pct(e.share1), pct(e.rate0), pct(e.rate1), pp(e.mix_effect), pp(e.rate_effect),
                pp(e.total_effect), "" if e.z is None else f"{e.z:.2f}", "" if e.q_value is None else f"{e.q_value:.2g}",
-               yn(e.supported), yn(e.significant), yn(e.material)] for label, e in effects])
+               yn(e.supported), yn(e.significant), yn(e.material)] for label, e in effects],
+        key_columns=KEY_COLUMNS)
 
 
 def _dim_label(name: str) -> str:
@@ -248,7 +254,12 @@ def build_view(b: AnswerBundle) -> View:
                              values=[KV(label=f"{{{e.id}.{k}}}", value=value_text(e, k)) for k in e.values],
                              table=evidence_table(e, pct), chart=e.chart, cited_by=cited[e.id]) for e in b.evidence]
     dims = b.drivers.dimensions if b.drivers else []
-    key_charts = [KeyChart(dimension=d.dimension, label=_dim_label(d.dimension), spec=charts.waterfall(d),
+    try:
+        metric_label = load_catalog().metric(b.drivers.metric).label if b.drivers else ""
+    except KeyError:
+        metric_label = b.drivers.metric
+    key_charts = [KeyChart(dimension=d.dimension, label=_dim_label(d.dimension),
+                           spec=drillable_waterfall(charts.waterfall(d), d, metric_label, b.drivers.window),
                            simpson=simpson_callout(d),
                            summary=f"By {_dim_label(d.dimension).lower()}: mix {format_value(d.mix_total, 'pp')}, "
                                    f"rate {format_value(d.rate_total, 'pp')}.") for d in dims]
@@ -266,4 +277,6 @@ def build_view(b: AnswerBundle) -> View:
                 default_dimension=b.drivers.top_dimension if b.drivers and b.drivers.top_dimension in
                 {k.dimension for k in key_charts} else None,
                 fallback_chart=fallback, drivers=_driver_section(b) if b.drivers else None, recon=recon,
-                footprint=_footprint(b), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None)
+                footprint=_footprint(b), as_of=f"{b.as_of:%d %b %Y}" if b.as_of else None,
+                follow_ups=follow_ups(b), headline_parts=headline_parts(b.headline, b.plan and b.plan.metric),
+                markdown=markdown(b))
