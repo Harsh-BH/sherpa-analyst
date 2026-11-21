@@ -69,13 +69,18 @@ def saved(monkeypatch):
     monkeypatch.delenv("SHERPA_UI_FIXTURES", raising=False)
     monkeypatch.setattr(backend, "pipeline_status", lambda: (object(), None))   # DB mode, and nothing is asked
     bs = {p: _bundle(p) for p in ("head", "rm_south")}
-    for b in bs.values():
-        runs.save_run(b)
-    yield bs
     ids = [b.run_id for b in bs.values()]
-    with admin() as conn:
-        conn.execute("DELETE FROM app.run_feedback WHERE run_id = ANY(%s)", (ids,))
-        conn.execute("DELETE FROM app.runs WHERE run_id = ANY(%s)", (ids,))
+    try:
+        for b in bs.values():
+            runs.save_run(b)
+        yield bs
+    finally:
+        # app.runs first and in its own transaction: these rows show on the live Runs page (source 'app'), and a
+        # failing feedback DELETE (say, before app.run_feedback existed) must not roll their DELETE back
+        with admin() as conn:
+            conn.execute("DELETE FROM app.runs WHERE run_id = ANY(%s)", (ids,))
+        with admin() as conn:
+            conn.execute("DELETE FROM app.run_feedback WHERE run_id = ANY(%s)", (ids,))
 
 
 @pytest.mark.db
