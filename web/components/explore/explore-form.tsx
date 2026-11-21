@@ -11,6 +11,9 @@ import { useSherpa } from "@/lib/store";
 type Window = api.ExploreForm["window"];
 type Intent = api.ExploreForm["intent"];
 const NEEDS_BASELINE: Intent[] = ["compare_periods", "explain_change"];
+// Radix SelectItem cannot have an empty value: this stands for baseline null, which the pipeline
+// resolves to the equal-length window just before (compiler.default_baseline).
+const PRECEDING = "preceding";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -77,7 +80,7 @@ export function ExploreForm({ catalog, onPlan, onRun }: { catalog: api.Meta["cat
   const [metric, setMetric] = useState(catalog.metrics[0].name);
   const [dims, setDims] = useState<string[]>([]);
   const [window, setWindow] = useState<Window>("last_7_days");
-  const [baseline, setBaseline] = useState<Window>("previous_7_days");
+  const [baseline, setBaseline] = useState<Window | typeof PRECEDING>(PRECEDING);
   const [grain, setGrain] = useState<"day" | "hour">("day");
   const [filterDims, setFilterDims] = useState<string[]>([]);
   const [filterVals, setFilterVals] = useState<Record<string, string[]>>({});
@@ -92,7 +95,7 @@ export function ExploreForm({ catalog, onPlan, onRun }: { catalog: api.Meta["cat
       metric,
       dimensions: dims.filter((d) => names.has(d)),
       window,
-      baseline: NEEDS_BASELINE.includes(intent) ? baseline : null,
+      baseline: NEEDS_BASELINE.includes(intent) && baseline !== PRECEDING ? baseline : null,
       grain,
       filters: filterDims
         .filter((d) => names.has(d) && filterVals[d]?.length)
@@ -115,7 +118,12 @@ export function ExploreForm({ catalog, onPlan, onRun }: { catalog: api.Meta["cat
         />
         <Pick label="Window" value={window} options={catalog.windows} onChange={(v) => setWindow(v as Window)} />
         {NEEDS_BASELINE.includes(intent) && (
-          <Pick label="Baseline" value={baseline} options={catalog.windows} onChange={(v) => setBaseline(v as Window)} />
+          <Pick
+            label="Baseline"
+            value={baseline}
+            options={[{ value: PRECEDING, label: "preceding window of equal length" }, ...catalog.windows]}
+            onChange={(v) => setBaseline(v as typeof baseline)}
+          />
         )}
         {intent === "trend" && (
           <Pick
