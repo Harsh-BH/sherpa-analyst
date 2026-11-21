@@ -21,12 +21,12 @@ export function ChartCard({ chart, i = 0 }: { chart: ChartView; i?: number }) {
 }
 
 /** Dashboard charts side by side once their column is wide enough (a container query, so the rail or a narrow
- * centre gets one column), else stacked. */
+ * centre gets one column), else stacked. Each card keeps its own height, so a short chart leaves no empty card. */
 export function ChartGrid({ charts, from = 0 }: { charts: ChartView[]; from?: number }) {
   if (!charts.length) return null;
   return (
     <div className="@container">
-      <div data-testid="chart-grid" className="grid gap-2.5 @2xl:grid-cols-2">
+      <div data-testid="chart-grid" className="grid items-start gap-2.5 @2xl:grid-cols-2">
         {charts.map((c, j) => (
           <ChartCard key={c.key} chart={c} i={from + j} />
         ))}

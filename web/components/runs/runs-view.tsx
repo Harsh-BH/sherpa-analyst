@@ -78,10 +78,10 @@ export function RunsView() {
               <ChartGrid charts={ok.charts} from={ok.tiles.length} />
               <div
                 style={{ "--i": ok.tiles.length + ok.charts.length } as CSSProperties}
-                className="rise overflow-x-auto rounded-xl border bg-card shadow-sm"
+                className="rise overflow-hidden rounded-xl border bg-card shadow-sm"
               >
-                <Table data-testid="runs-table" className="text-[12.5px]">
-                  <TableHeader>
+                <Table data-testid="runs-table" className="text-[12.5px]" containerClassName="max-h-[70vh] overflow-auto">
+                  <TableHeader className="sticky top-0 z-[1] bg-card/80 backdrop-blur-md">
                     <TableRow>
                       {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost"].map((h) => (
                         <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
@@ -100,7 +100,7 @@ export function RunsView() {
                       >
                         <TableCell>{r.asked_at}</TableCell>
                         <TableCell>{r.persona}</TableCell>
-                        <TableCell className="min-w-64 whitespace-normal wrap-break-word">{r.question}</TableCell>
+                        <TableCell className="min-w-40 whitespace-normal wrap-break-word">{r.question}</TableCell>
                         <TableCell><StatusBadge status={r.status} /></TableCell>
                         <TableCell>{r.route}</TableCell>
                         <TableCell>{r.confidence}</TableCell>

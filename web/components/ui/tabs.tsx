@@ -80,7 +80,7 @@ function TabsContent({
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none animate-in fade-in-0 duration-200 ease-out", className)}
+      className={cn("flex-1 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset animate-in fade-in-0 duration-200 ease-out", className)}
       {...props}
     />
   )

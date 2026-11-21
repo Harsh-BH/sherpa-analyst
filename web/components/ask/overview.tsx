@@ -20,7 +20,7 @@ function KpiCard({ k, i }: { k: Kpi; i: number }) {
       data-testid="kpi-card"
       data-tone={k.tone}
       style={{ "--i": i } as CSSProperties}
-      className="rise flex min-w-0 flex-col rounded-xl border bg-card p-3.5 pb-2 shadow-sm"
+      className="rise flex min-h-[172px] min-w-0 flex-col rounded-xl border bg-card p-3.5 pb-2 shadow-sm"
     >
       <div className="section-label">{k.label}</div>
       <div data-testid="kpi-value" className="mt-auto pt-1.5 text-xl font-semibold tabular-nums">
@@ -59,14 +59,15 @@ export function Overview() {
   const data = got?.persona === persona ? got.data : undefined;
   if (data === undefined)
     return (
+      // the loaded panel's measured heights (heading 20, KPI card min 172, trend card 334 px): nothing below jumps
       <div data-testid="overview-loading" aria-hidden className="grid gap-2.5">
-        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-5 w-56" />
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-[134px] rounded-xl" />
+            <Skeleton key={i} className="h-[172px] rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-[290px] rounded-xl" />
+        <Skeleton className="h-[334px] rounded-xl" />
       </div>
     );
   if (!data?.available) return null;

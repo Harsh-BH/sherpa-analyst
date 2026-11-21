@@ -27,7 +27,7 @@ export function QuestionBar() {
       />
       <Button type="submit" data-testid="ask-button" className="h-9 px-3.5">
         Ask
-        <kbd aria-hidden className="font-mono text-[11px] opacity-70">
+        <kbd aria-hidden className="font-mono text-[11px] opacity-85">
           ↵
         </kbd>
       </Button>

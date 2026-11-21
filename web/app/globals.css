@@ -24,11 +24,11 @@
   --accent-foreground: #111214;
   --accent-blue: #2456c4;
   --positive: #13703a; /* 4.97:1 on its own 10% tint over bg */
-  --negative: #c22f2a;
-  --warning: #8c5800;
-  --destructive: #c22f2a;
+  --negative: #b02a25; /* 4.95:1 as a /10 badge on a selected table row (accent 8% over card) */
+  --warning: #865400; /* 4.78:1 as a /12 badge on a selected table row */
+  --destructive: #b02a25;
   --border: #e1e2e5;
-  --input: #8c8f95; /* 3.0:1 on bg, 3.2:1 on surface (WCAG 1.4.11) */
+  --input: #868990; /* 3.2:1 on bg and on the frosted question bar, 3.5:1 on surface (WCAG 1.4.11) */
   --ring: #2456c4;
   --radius: 0.5rem;
   --sidebar: #eeeef0;
