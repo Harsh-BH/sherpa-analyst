@@ -1,4 +1,5 @@
-"""Run log: save_run never raises; saved runs come back in recent_runs and run_stats."""
+"""Run log: save_run never raises; saved runs come back in recent_runs and run_stats, app runs only.
+conftest.py labels every run pytest saves source='test'; the tests that need a visible run set it to 'app'."""
 import logging
 import uuid
 
@@ -36,8 +37,14 @@ def cleanup():
         conn.execute("DELETE FROM app.runs WHERE run_id = ANY(%s)", (ids,))
 
 
+def _source(run_id: str) -> str:
+    with psycopg.connect(settings().admin_dsn()) as conn:
+        return conn.execute("SELECT source FROM app.runs WHERE run_id = %s", (run_id,)).fetchone()[0]
+
+
 @pytest.mark.db
-def test_save_and_read_back(cleanup, caplog):
+def test_save_and_read_back(cleanup, caplog, monkeypatch):
+    monkeypatch.setenv("SHERPA_RUN_SOURCE", "app")
     b = _bundle()
     cleanup.append(b.run_id)
     runs.save_run(b)
@@ -50,7 +57,44 @@ def test_save_and_read_back(cleanup, caplog):
 
 
 @pytest.mark.db
-def test_run_stats(cleanup):
+def test_readers_see_app_runs_only(cleanup, monkeypatch):
+    n0 = runs.run_stats()["runs"]
+    t = _bundle()
+    cleanup.append(t.run_id)
+    runs.save_run(t)                                  # SHERPA_RUN_SOURCE=test, from conftest
+    assert _source(t.run_id) == "test"
+    assert runs.run_stats()["runs"] == n0
+    assert t.run_id not in {r["run_id"] for r in runs.recent_runs(500)}
+    assert t.run_id not in {r["run_id"] for r in runs.run_series()}
+    monkeypatch.setenv("SHERPA_RUN_SOURCE", "app")
+    a = _bundle()
+    cleanup.append(a.run_id)
+    runs.save_run(a)
+    assert _source(a.run_id) == "app" and a.run_id in {r["run_id"] for r in runs.recent_runs(500)}
+
+
+@pytest.mark.db
+def test_run_series(cleanup, monkeypatch):
+    monkeypatch.setenv("SHERPA_RUN_SOURCE", "app")
+    ids = []
+    for status in ("answered", "refused"):
+        b = _bundle()
+        b.status = status
+        cleanup.append(b.run_id)
+        ids.append(b.run_id)
+        runs.save_run(b)
+    rows = {r["run_id"]: r for r in runs.run_series()}
+    assert set(ids) <= rows.keys()
+    r = rows[ids[1]]
+    assert set(r) == {"run_id", "asked_at", "status", "timings_ms", "cost_usd"}
+    assert r["status"] == "refused" and r["timings_ms"]["total"] == 1200 and r["cost_usd"] == 0.01
+    asked = [r["asked_at"] for r in rows.values()]
+    assert asked == sorted(asked)                     # oldest first
+
+
+@pytest.mark.db
+def test_run_stats(cleanup, monkeypatch):
+    monkeypatch.setenv("SHERPA_RUN_SOURCE", "app")
     for status, total in [("answered", 1000), ("refused", 3000), ("clarify", 2000)]:
         b = _bundle()
         b.status, b.timings_ms = status, {"total": total, "queries": 2, "cache_hits": 1}
