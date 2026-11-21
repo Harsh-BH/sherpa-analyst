@@ -4,7 +4,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import backend
+from app import api, backend
 from app.api import app
 from app.view import fmt_ms
 
@@ -196,6 +196,9 @@ def test_overview_serves_its_fixture_in_fixture_mode():
         assert len(k["spark"]["data"]["values"]) == 30
     assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["mark"]["type"] == "line"
     assert client.get("/api/overview?persona=nobody").status_code == 422
+    # the fixture is head's: another persona gets no panel rather than head's all-region numbers
+    assert client.get("/api/overview?persona=rm_south").json() == {"available": False,
+                                                                   "reason": "fixture captured for head only"}
 
 
 def test_overview_unavailable_on_failure(monkeypatch):
@@ -218,6 +221,8 @@ def test_eval_charts(monkeypatch):
     assert len(vs) == 8 and "Result equivalence 95% vs 60%" in charts["eval-vs-baseline"]["summary"]
     kinds = {(r["kind"], r["system"]): r["_label"] for r in charts["eval-by-kind"]["spec"]["data"]["values"]}
     assert kinds[("Refusal (n=1)", "Sherpa")] == "100%" and kinds[("Refusal (n=1)", "Baseline")] == "0%"
+    assert api._kind("unsafe_sql") == "Unsafe SQL" and api._kind("planted_cause") == "Planted cause"
+    assert client.get("/api/eval").json()["generated_at"] == "21 Nov 2026 03:00 IST"   # formatted, not raw ISO
 
 
 def _series():
@@ -244,6 +249,7 @@ def test_runs_charts(monkeypatch):
     assert stage == {"Plan": "2.0 s", "Narration": "3.0 s"}                    # mean over runs, pipeline order
     spend = charts["llm-spend"]["spec"]["data"]["values"]
     assert [r["_label"] for r in spend] == ["$0.0100", "$0.0300"]              # cumulative, runs with a cost
+    assert charts["llm-spend"]["summary"].startswith("LLM spend: $0.0300 in total")   # same text as the last point
     assert [r["_label"] for r in charts["latency"]["spec"]["data"]["values"]] == ["5.0 s", "6.0 s", "7.0 s"]
 
 

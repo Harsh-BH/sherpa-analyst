@@ -51,6 +51,21 @@ def _words(s: str) -> str:
     return s.replace("_", " ")
 
 
+def _kind(s: str) -> str:
+    """Eval case kind as a label: 'unsafe_sql' -> 'Unsafe SQL' (str.capitalize would lowercase the acronym)."""
+    w = " ".join("SQL" if x == "sql" else x for x in s.split("_"))
+    return w[:1].upper() + w[1:]
+
+
+def _when(iso: Any) -> str | None:
+    """An ISO timestamp from the eval results as IST wall-clock text; anything unparseable passes through."""
+    try:
+        t = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return iso
+    return f"{_local(t):%d %b %Y %H:%M} IST" if t.tzinfo else f"{t:%d %b %Y %H:%M}"
+
+
 # ------------------------------------------------------------------ models
 class Health(BaseModel):
     ok: bool
@@ -315,7 +330,7 @@ def eval_results() -> EvalOk | EvalMissing | EvalError:
         systems, cases = data["systems"], data.get("cases", [])
         sherpa, base = systems.get("sherpa", {}), systems.get("baseline", {})
         return EvalOk(
-            fixture=fixture, generated_at=data.get("generated_at"), data_version=data.get("data_version"),
+            fixture=fixture, generated_at=_when(data.get("generated_at")), data_version=data.get("data_version"),
             tiles=[EvalTile(label=label, sherpa=_fmt(sherpa.get(k), f), baseline=_fmt(base.get(k), f))
                    for k, label, f in EVAL_METRICS],
             cases=[EvalCase(id=c.get("id"), kind=c.get("kind"), question=c.get("question"),
@@ -349,7 +364,7 @@ def _eval_charts(sherpa: dict, base: dict, cases: list[dict]) -> list[ChartView]
             graded = [c[s.lower()] for c in cases if (c.get("kind") or "other") == kind and isinstance(c.get(s.lower()), dict)]
             if graded:
                 r = sum(bool(g.get("pass")) for g in graded) / len(graded)
-                by_kind.append({"kind": f"{_words(kind).capitalize()} (n={n})", "system": s, "rate": r, "_label": _fmt(r, "pct")})
+                by_kind.append({"kind": f"{_kind(kind)} (n={n})", "system": s, "rate": r, "_label": _fmt(r, "pct")})
     out = []
     for key, title, rows, y in (("eval-vs-baseline", "Sherpa vs baseline", rates, "metric"),
                                 ("eval-by-kind", "Pass rate by question type", by_kind, "kind")):
@@ -410,7 +425,7 @@ def _runs_charts(series: list[dict]) -> list[ChartView]:
     if spend:
         out.append(ChartView(
             key="llm-spend", title="LLM spend",
-            summary=f"LLM spend: {_fmt(cum, 'usd')} in total over {len(spend)} runs with a recorded cost.",
+            summary=f"LLM spend: {spend[-1]['_label']} in total over {len(spend)} runs with a recorded cost.",
             spec=charts.lines(spend, "t", "usd", "LLM spend", {"title": "USD, cumulative", "format": "$.3~f"},
                               {"LLM spend": charts.MIX}, zero=True, x_format=x_format)))
     return out
@@ -450,8 +465,10 @@ def overview(persona: str = DEFAULT_PERSONA) -> OverviewOk | OverviewUnavailable
     if persona not in load_access().personas:
         raise HTTPException(422, f"unknown persona {persona!r}")
     try:
-        if backend.pipeline_status()[0] is None:   # fixture mode: captured from the real endpoint (persona head)
-            return OverviewOk.model_validate_json((backend.FIXTURES / "overview.json").read_text())
+        if backend.pipeline_status()[0] is None:   # fixture mode: captured from the real endpoint for one persona
+            o = OverviewOk.model_validate_json((backend.FIXTURES / "overview.json").read_text())
+            # another persona's scope differs: hide the panel rather than show the fixture persona's numbers
+            return o if o.persona == persona else OverviewUnavailable(reason=f"fixture captured for {o.persona} only")
         return home.build(persona)
     except Exception as e:  # noqa: BLE001 - no DB, no seed, a guard or cost rejection: the UI hides the panel
         detail = str(e).splitlines()[0] if str(e) else "no detail"

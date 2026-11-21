@@ -649,12 +649,15 @@
  "trend": {
   "key": "overview-trend",
   "title": "Daily success rate",
-  "summary": "Daily success rate, last 30 days (21 Oct - 19 Nov 2026): 92.2% overall, from 91.4% to 93.0% a day; previous 30 days 92.4%.",
+  "summary": "Daily success rate, last 30 days (21 Oct - 19 Nov 2026): 92.2% overall, from 91.4% to 92.8% a day; previous 30 days 92.4%.",
   "spec": {
    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
    "title": {
     "text": "Daily success rate",
-    "subtitle": "last 30 days (21 Oct - 19 Nov 2026) vs 21 Sep - 20 Oct 2026"
+    "subtitle": [
+     "last 30 days (21 Oct - 19 Nov 2026)",
+     "vs 21 Sep - 20 Oct 2026"
+    ]
    },
    "width": 620,
    "data": {
@@ -1094,6 +1097,7 @@
      "type": "temporal",
      "title": null,
      "axis": {
+      "labelFlush": 40,
       "format": "%d %b"
      }
     },
@@ -1123,7 +1127,9 @@
      },
      "legend": {
       "title": null,
-      "orient": "top"
+      "orient": "top",
+      "symbolType": "stroke",
+      "symbolStrokeWidth": 2
      }
     },
     "strokeDash": {
@@ -1137,7 +1143,9 @@
      },
      "legend": {
       "title": null,
-      "orient": "top"
+      "orient": "top",
+      "symbolType": "stroke",
+      "symbolStrokeWidth": 2
      }
     },
     "tooltip": [

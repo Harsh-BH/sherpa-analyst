@@ -12,10 +12,9 @@ from app.view import ChartView
 from sherpa import charts, db
 from sherpa.compiler import compile_metric, default_baseline, metric_value, resolve_window
 from sherpa.config import load_catalog
-from sherpa.contracts import TimeWindow, format_value
+from sherpa.contracts import CATALOG_FORMAT, TimeWindow, format_value
 
 KPIS = ("success_rate", "gmv", "attempts", "technical_decline_rate")
-_FMT = {"percent": "pct", "inr": "inr", "count": "int"}
 
 
 class Kpi(BaseModel):
@@ -65,7 +64,7 @@ def _day(d: date) -> str:
 
 def _kpi(key: str, n: dict) -> Kpi:
     m = load_catalog().metric(key)
-    fmt, cur, prev = _FMT[m.format], n["value"], n["prev"]
+    fmt, cur, prev = CATALOG_FORMAT[m.format], n["value"], n["prev"]
     if cur is None or prev is None or (fmt != "pct" and not prev):
         delta, diff = "n/a", 0.0
     else:
@@ -86,14 +85,16 @@ def _trend(window: TimeWindow, baseline: TimeWindow, n: dict) -> ChartView:
             for d, v in n["daily"] if v is not None]
     rows += [{"day": _day(d + shift), "date": _day(d), "series": prev, "value": v, "_label": format_value(v, "pct")}
              for d, v in n["prev_daily"] if v is not None]
-    lo, hi = (min(rows, key=lambda r: r["value"]), max(rows, key=lambda r: r["value"])) if rows else (None, None)
-    spec = charts.lines(rows, "day", "value", {"text": "Daily success rate", "subtitle": f"{window.label} vs {baseline.label}"},
+    now = [r for r in rows if r["series"] == cur]   # the daily range quoted is the last 30 days' own
+    lo, hi = (min(now, key=lambda r: r["value"]), max(now, key=lambda r: r["value"])) if now else (None, None)
+    # two subtitle lines: Vega never wraps, and one line loses the baseline's end on a phone
+    spec = charts.lines(rows, "day", "value", {"text": "Daily success rate", "subtitle": [window.label, f"vs {baseline.label}"]},
                         charts._axis("pct", "Success rate"), {cur: charts.MIX, prev: charts.TOTAL},
                         tooltip=[{"field": "series", "title": "Period"},
                                  {"field": "date", "type": "temporal", "title": "Date", "format": "%d %b %Y"},
                                  {"field": "_label", "title": "Success rate"}])
     summary = (f"Daily success rate, {window.label}: {format_value(n['value'], 'pct')} overall"
-               + (f", from {lo['_label']} to {hi['_label']} a day" if rows else "")
+               + (f", from {lo['_label']} to {hi['_label']} a day" if now else "")
                + f"; previous 30 days {format_value(n['prev'], 'pct')}.")
     return ChartView(key="overview-trend", title="Daily success rate", summary=summary, spec=spec)
 

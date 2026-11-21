@@ -175,27 +175,34 @@ def recon_bridge(recon: ReconResult) -> dict:
 # ---------------------------------------------------------------- dashboard charts (Home, Eval, Runs)
 # Rows arrive with their display text already in `_label` (formatted in Python); times are local ISO strings
 # without an offset ("2026-11-21T15:30:00"), which Vega reads as wall-clock time in any browser.
+# Time axes: a label whose tick sits within 40 px of an end aligns inward, so the last one never runs off the card
+# (Vega's default flushes only a tick exactly at the end; Vega's fit-x sizing can still leave a later tick's label over).
+TIME_AXIS = {"labelFlush": 40}
+
+
 def _palette(field: str, colors: dict[str, str]) -> dict:
     enc = _color(field, list(colors), list(colors.values()))
     return {**enc, "legend": None} if len(colors) == 1 else enc
 
 
-def sparkline(rows: list[dict], x: str, y: str, color: str = MIX) -> dict:
+def sparkline(rows: list[dict], x: str, y: str) -> dict:
     """A 40 px line with no axes or title, for a KPI card (the card carries the label and value)."""
     return {"$schema": SCHEMA, "width": WIDTH, "height": 40, "padding": 2, "data": {"values": rows},
-            "mark": {"type": "line", "color": color, "strokeWidth": 1.5, "interpolate": "monotone"},
+            "mark": {"type": "line", "color": MIX, "strokeWidth": 1.5, "interpolate": "monotone"},
             "encoding": {"x": {"field": x, "type": "temporal", "axis": None},
                          "y": {"field": y, "type": "quantitative", "axis": None, "scale": {"zero": False}}}}
 
 
 def lines(rows: list[dict], x: str, y: str, title: str | dict, y_axis: dict, colors: dict[str, str],
-          series: str = "series", zero: bool = False, tooltip: list[dict] | None = None, x_format: str = "%d %b") -> dict:
-    """Lines over time, one per `series` value (colours from `colors`, the first solid and the rest dashed)."""
-    color = _palette(series, colors)
-    enc = {"x": {"field": x, "type": "temporal", "title": None, "axis": {"format": x_format}},
+          zero: bool = False, tooltip: list[dict] | None = None, x_format: str = "%d %b") -> dict:
+    """Lines over time, one per row["series"] value (colours from `colors`, the first solid and the rest dashed)."""
+    color = _palette("series", colors)
+    if color["legend"]:   # a short line as the legend mark, so the dashed series shows its dash
+        color = {**color, "legend": {**color["legend"], "symbolType": "stroke", "symbolStrokeWidth": 2}}
+    enc = {"x": {"field": x, "type": "temporal", "title": None, "axis": {**TIME_AXIS, "format": x_format}},
            "y": {"field": y, "type": "quantitative", "scale": {"zero": zero}, "axis": y_axis},
            "color": color,   # one legend: Vega-Lite merges the two channels on the same field
-           "strokeDash": {"field": series, "type": "nominal", "scale": {"domain": list(colors)}, "legend": color["legend"]},
+           "strokeDash": {"field": "series", "type": "nominal", "scale": {"domain": list(colors)}, "legend": color["legend"]},
            "tooltip": tooltip or [{"field": x, "type": "temporal", "title": "Time", "format": "%d %b %H:%M"},
                                   {"field": "_label", "title": y_axis.get("title") or _title(y)}]}
     return {**_base(title, rows), "height": 200, "mark": {"type": "line", "point": {"size": 18}}, "encoding": enc}
@@ -230,7 +237,7 @@ def status_bars(rows: list[dict], x: str, time_unit: str, title: str | dict) -> 
     hourly = "hours" in time_unit
     fmt = "%d %b %H:00" if hourly else "%d %b"
     # ticks at least one bucket apart: a half-hour tick would print the hour twice
-    axis = {"format": fmt, "tickCount": {"interval": "hour" if hourly else "day"}}
+    axis = {**TIME_AXIS, "format": fmt, "tickCount": {"interval": "hour" if hourly else "day"}}
     return {**_base(title, rows), "height": 160, "mark": {"type": "bar", "cornerRadiusEnd": 2},
             "encoding": {"x": {**xenc, "title": None, "axis": axis},
                          "y": {"aggregate": "count", "type": "quantitative", "title": "Runs",
@@ -244,7 +251,7 @@ def status_points(rows: list[dict], x: str, y: str, title: str | dict, y_axis: d
     """One point per run over time, coloured and shaped by status."""
     legend = {"title": None, "orient": "top"}
     return {**_base(title, rows), "height": 180, "mark": {"type": "point", "filled": True, "size": 46, "opacity": 0.85},
-            "encoding": {"x": {"field": x, "type": "temporal", "title": None, "axis": {"format": x_format}},
+            "encoding": {"x": {"field": x, "type": "temporal", "title": None, "axis": {**TIME_AXIS, "format": x_format}},
                          "y": {"field": y, "type": "quantitative", "axis": y_axis},
                          "color": {**_palette("status", STATUS), "legend": legend},
                          "shape": {"field": "status", "type": "nominal", "scale": {"domain": list(STATUS)}, "legend": legend},

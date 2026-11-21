@@ -149,6 +149,15 @@ def test_runs_are_logged():
     assert {"plan", "triage", "analysis", "dq", "narrate", "check"} <= row[1].keys()   # one timing per streamed stage
 
 
+def test_timed_stages_are_the_streamed_stages():
+    """A settlements metric skips the dq stage, so it is not timed either: the footprint's steps are the trace's."""
+    seen: list[str] = []
+    b = pipeline.answer("payouts", "head", plan=_plan(intent="metric_value", metric="settled_net",
+                        window=TimeWindow(preset="last_7_days")), on_stage=seen.append)
+    assert b.status == "answered" and "dq" not in seen, (b.status, b.error)
+    assert [k for k in b.timings_ms if k not in ("total", "queries", "cache_hits")] == seen
+
+
 def test_denominator_not_asked_when_both_readings_agree(truth):
     """S3: cards fell under both definitions (-0.67 pp / -1.10 pp): same story, so no clarification."""
     from sherpa.contracts import Ambiguity

@@ -368,6 +368,9 @@ class AnswerBundle(BaseModel):
 
 
 # ============================================================== shared helpers
+CATALOG_FORMAT: dict[str, ValueFormat] = {"percent": "pct", "inr": "inr", "count": "int"}   # catalog metric format -> ValueFormat
+
+
 def format_value(v: float | int | str | None, fmt: ValueFormat) -> str:
     """The one place numbers become text (UI and claim rendering both use it)."""
     if v is None:

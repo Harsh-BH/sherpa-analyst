@@ -73,7 +73,9 @@ test("switching persona refetches the overview", async ({ page }) => {
   await page.getByTestId("persona").click();
   await page.getByRole("option", { name: "Regional manager, South" }).click();
   await expect.poll(() => asked).toEqual(["head", "rm_south"]);
-  await expect(page.getByTestId("overview")).toBeVisible();
+  // the fixture is head's: South gets no panel rather than head's all-region numbers
+  await expect(page.getByTestId("overview-loading")).toHaveCount(0);
+  await expect(page.getByTestId("overview")).toHaveCount(0);
 });
 
 test("eval charts sit above the cases, and Pass/Fail are coloured", async ({ page }) => {
