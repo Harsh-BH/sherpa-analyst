@@ -4,17 +4,17 @@ Answers "why did success rate change?" over payments data. The LLM plans and nar
 
 ## Stack
 
-Python 3.12 (uv) · Postgres 17 in docker (host port 5433) · sqlglot · pandas/statsmodels · Streamlit + Altair · Claude via the anthropic SDK or `claude -p`.
+Python 3.12 (uv) · Postgres 17 in docker (host port 5433) · sqlglot · pandas/statsmodels · FastAPI (`app/`) + Next.js in `web/` (pnpm, Node 26) · Claude via the anthropic SDK or `claude -p`.
 
 ## Commands
 
 | | |
 |---|---|
-| install | `uv sync` |
+| install | `uv sync` · `pnpm -C web install` |
 | db up | `docker compose up -d db` |
 | seed | `make seed` (SEED=42) |
-| test | `uv run pytest` (`-m db` needs a seeded DB, `-m live` makes LLM calls) |
-| app | `uv run streamlit run app/streamlit_app.py` |
+| test | `uv run pytest` (`-m db` needs a seeded DB, `-m live` makes LLM calls); `make e2e` (browser, fixture mode) |
+| app | `make app` (API 127.0.0.1:8000 + UI http://localhost:3000; `SHERPA_UI_FIXTURES=1` = no DB/LLM) |
 
 ## Layout
 

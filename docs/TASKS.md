@@ -74,6 +74,23 @@ Start immediately (no DB needed): Q1, Q2, A1–A4, L1–L4, U1–U5, D4, D1. Nee
 | I6 | README, demo script, full compose verify | master | I3,I4,I5 | P0 | M | Completed |
 | I7 | final report, push | master | I6 | P0 | S | Completed |
 
+## UI rebuild: Next.js Inspector Rail (branch `feature/nextjs-ui`)
+
+Streamlit replaced by a Next.js front end over a FastAPI service. Spec: `docs/superpowers/specs/2026-11-21-nextjs-inspector-ui-design.md`;
+plan: `docs/superpowers/plans/2026-11-21-nextjs-inspector-ui.md`.
+
+| ID | Task | Agent | Deps | Prio | Cx | Status |
+|---|---|---|---|---|---|---|
+| W1 | view model `app/view.py`: every number a string | ui | I7 | P0 | M | Completed |
+| W2 | FastAPI `app/api.py`: ask over SSE, meta, explore, eval, runs | ui | W1 | P0 | M | Completed |
+| W3 | web scaffold, theme, shell, API client, e2e harness | ui | W2 | P0 | M | Completed |
+| W4 | Ask page, live trace, answer view | ui | W3 | P0 | L | Completed |
+| W5 | inspector rail, linked selection, themed charts | ui | W4 | P0 | L | Completed |
+| W6 | clarification, refusal and error states; Explore | ui | W5 | P1 | M | Completed |
+| W7 | Eval and Runs pages | ui | W4 | P2 | S | Completed |
+| W8 | Streamlit removed; Docker files written (not built: disk); docs; live check | ui | W6,W7 | P1 | S | Completed |
+| W9 | merge to `main` with `--no-ff`, push | master | W8 | P0 | S | Pending |
+
 ## Final state
 
 - 391 tests pass (3 live-LLM tests deselected by default). Fresh two-seed eval on `2f13f1c`: Sherpa 56/56, naive baseline 17/56, unsupported numbers 0 vs 72.
