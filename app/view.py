@@ -8,7 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from app.answer_extras import KEY_COLUMNS, FollowUp, HeadlinePart, drillable_waterfall, follow_ups, headline_parts, markdown
+from app.answer_extras import (KEY_COLUMNS, FollowUp, HeadlinePart, dim_label, drillable_waterfall, follow_ups,
+                                headline_parts, markdown)
 from sherpa import charts
 from sherpa.config import load_access, load_catalog
 from sherpa.contracts import AnswerBundle, DimensionDecomposition, Evidence, SegmentEffect, format_value
@@ -187,13 +188,6 @@ def _effects_table(effects: list[tuple[str, SegmentEffect]]) -> Table:
         key_columns=KEY_COLUMNS)
 
 
-def _dim_label(name: str) -> str:
-    try:
-        return load_catalog().dimension(name).label
-    except KeyError:
-        return name.replace("_", " ")
-
-
 def simpson_callout(dec: DimensionDecomposition) -> str | None:
     if not dec.simpson_flag:
         return None
@@ -259,10 +253,10 @@ def build_view(b: AnswerBundle, *, partial: bool = False) -> View:
         metric_label = load_catalog().metric(b.drivers.metric).label if b.drivers else ""
     except KeyError:
         metric_label = b.drivers.metric
-    key_charts = [KeyChart(dimension=d.dimension, label=_dim_label(d.dimension),
+    key_charts = [KeyChart(dimension=d.dimension, label=dim_label(d.dimension),
                            spec=drillable_waterfall(charts.waterfall(d), d, metric_label, b.drivers.window),
                            simpson=simpson_callout(d),
-                           summary=f"By {_dim_label(d.dimension).lower()}: mix {format_value(d.mix_total, 'pp')}, "
+                           summary=f"By {dim_label(d.dimension).lower()}: mix {format_value(d.mix_total, 'pp')}, "
                                    f"rate {format_value(d.rate_total, 'pp')}.") for d in dims]
     fallback = None
     if not dims and not b.recon:

@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.answer_extras import tone
+from app.answer_extras import HINT, completeness_question, tone
 from app.view import ChartView
 from sherpa import charts, db, dq
 from sherpa.compiler import compile_dq_queries, compile_metric, default_baseline, metric_value, resolve_window
@@ -132,7 +132,7 @@ def _trend(window: TimeWindow, baseline: TimeWindow, n: dict) -> ChartView:
     moves = _moves(n)
     rows = []
     for m in moves:
-        hint = ("Unusual day. " if m["unusual"] else "") + ("Click to ask Sherpa why" if m["ask"] else "No day before to compare with")
+        hint = ("Unusual day. " if m["unusual"] else "") + (HINT if m["ask"] else "No day before to compare with")
         rows.append({"day": _day(m["day"]), "date": _day(m["day"]), "series": CURRENT, "value": m["value"],
                      "_label": format_value(m["value"], "pct"), "_change": format_value(m["change"], "pp"),
                      "_unusual": m["unusual"], "_hint": hint, **({"_ask": m["ask"]} if m["ask"] else {})})
@@ -186,7 +186,7 @@ def _issue(w: DQWarning, window: TimeWindow) -> DataIssue:
     day = w.values.get("date") or str(w.values.get("start") or "")[:10]   # duplicates: date; an outage: its start
     when = dq._d(date.fromisoformat(day)) if day else f"{dq._d(window.start)} – {dq._d(window.end)}"
     return DataIssue(check=w.check, severity=w.severity, when=when, text=w.message,
-                     question=f"Is the transaction data for {when if day else 'the last 30 days'} complete?")
+                     question=completeness_question(when if day else "last 30 days"))
 
 
 @lru_cache(maxsize=8)

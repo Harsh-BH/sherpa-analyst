@@ -3,7 +3,7 @@ import json
 from datetime import date
 
 from app import backend
-from app.answer_extras import headline_parts, tone
+from app.answer_extras import _in, completeness_question, headline_parts, tone
 from app.view import build_view
 from sherpa.config import load_access, load_catalog
 from sherpa.contracts import DimensionDecomposition, SegmentEffect, TimeWindow
@@ -99,6 +99,37 @@ def test_compare_follow_up_for_a_single_number():
         _assert_valid(f, "head")
 
 
+def test_drill_follow_up_skips_a_single_segment_dimension():
+    """rm_south's region decomposition is South alone: drilling by it is a dead end, so the next one is used."""
+    b = _resolved(backend.load_fixture("explain_change"))
+    b.persona = "rm_south"
+    south = DimensionDecomposition(dimension="region", r0=0.928, r1=0.917, delta=-0.011, mix_total=0.0,
+                                   rate_total=-0.011, score=0.5, simpson_flag=False, segments=[_seg("region", "South", -0.011)])
+    b.drivers.dimensions.insert(1, south)
+    drill = build_view(b).follow_ups[0]
+    assert drill.label == "UPI by gateway" and drill.plan.dimensions == ["gateway"]
+    b.drivers.dimensions[2:] = []   # nothing left that splits: no drill at all
+    assert all(not f.plan.filters for f in build_view(b).follow_ups if f.plan.intent == "explain_change")
+
+
+def test_window_phrases_read_as_english():
+    assert _in("yesterday (19 Nov 2026)") == "yesterday (19 Nov 2026)"
+    assert _in("all data (1 Aug - 19 Nov 2026)") == "across all data (1 Aug - 19 Nov 2026)"
+    assert _in("last 7 days (13-19 Nov 2026)") == "in the last 7 days (13-19 Nov 2026)"
+    assert (_in("13 Nov 2026"), _in("6-12 Nov 2026")) == ("on 13 Nov 2026", "during 6-12 Nov 2026")
+    assert completeness_question("yesterday (19 Nov 2026)") == "Is the transaction data for yesterday (19 Nov 2026) complete?"
+    assert completeness_question("all data (1 Aug - 19 Nov 2026)") == "Is all the transaction data (1 Aug - 19 Nov 2026) complete?"
+    assert completeness_question("18 Nov") == "Is the transaction data for 18 Nov complete?"
+    assert completeness_question("last 30 days") == "Is the transaction data for the last 30 days complete?"
+    b = _resolved(backend.load_fixture("explain_change"))
+    b.plan.intent, b.plan.baseline, b.drivers = "metric_value", None, None
+    b.plan.window = TimeWindow(preset="yesterday", start=date(2026, 11, 19), end=date(2026, 11, 19),
+                               label="yesterday (19 Nov 2026)")
+    qs = [f.question for f in build_view(b).follow_ups]
+    assert "Compare success rate yesterday (19 Nov 2026) with the day before" in qs
+    assert "Is the transaction data for yesterday (19 Nov 2026) complete?" in qs and not any("the yesterday" in q for q in qs)
+
+
 # ------------------------------------------------------------------ waterfall drill
 def test_waterfall_segment_bars_carry_ask():
     b = backend.load_fixture("explain_change")
@@ -165,6 +196,14 @@ def test_markdown_has_every_claim_and_the_footer():
             assert w.message in md
         assert f"Confidence: {b.confidence.capitalize()}" in md
         assert b.run_id in md and b.data_version in md
+
+
+def test_markdown_confidence_reasons_are_sentences():
+    b = backend.load_fixture("explain_change")
+    b.confidence_reasons = ["A data-quality error affects this window (missing data).", "Data-quality warning noted"]
+    line = next(x for x in build_view(b).markdown.splitlines() if x.startswith("Confidence:"))
+    assert line == ("Confidence: Medium. A data-quality error affects this window (missing data). "
+                    "Data-quality warning noted.")
 
 
 def test_markdown_escapes_links_and_html():

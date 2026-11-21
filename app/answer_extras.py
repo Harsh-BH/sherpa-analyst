@@ -20,8 +20,6 @@ Tone = Literal["positive", "negative", "neutral"]
 MAX_FOLLOW_UPS = 4
 HINT = "Click to ask Sherpa why"
 KEY_COLUMNS = ["segment", "share before", "share now", "rate before", "rate now", "total (pp)"]
-PRESET_DAYS = {"yesterday": 1, "last_7_days": 7, "previous_7_days": 7, "last_calendar_week": 7, "last_14_days": 14,
-               "last_28_days": 28, "last_30_days": 30}
 
 
 class FollowUp(BaseModel):
@@ -49,23 +47,35 @@ def _lower(label: str) -> str:
     return label if label[:2].isupper() else label[:1].lower() + label[1:]
 
 
-def _dim_label(name: str) -> str:
-    return _lower(load_catalog().dimension(name).label)
+def dim_label(name: str) -> str:
+    """A dimension's catalog label ('Payment method'); its name, spaced, when the catalog lacks it."""
+    try:
+        return load_catalog().dimension(name).label
+    except KeyError:
+        return name.replace("_", " ")
+
+
+def _dim(name: str) -> str:
+    return _lower(dim_label(name))
 
 
 def _in(label: str) -> str:
-    """A window label as a phrase: 'in the last 7 days (13-19 Nov 2026)', 'on 13 Nov 2026', 'during 6-12 Nov 2026'."""
+    """A window label as a phrase: 'in the last 7 days (13-19 Nov 2026)', 'yesterday (19 Nov 2026)',
+    'across all data (1 Aug - 19 Nov 2026)', 'on 13 Nov 2026', 'during 6-12 Nov 2026'."""
     if label[:1].isdigit():
         return f"during {label}" if "-" in label else f"on {label}"
-    return f"in the {label}"
+    if label.startswith("yesterday"):
+        return label
+    return f"across {label}" if label.startswith("all data") else f"in the {label}"
 
 
-def _days(w: TimeWindow | None) -> int | None:
-    if w is None:
-        return None
-    if w.start and w.end:
-        return (w.end - w.start).days + 1
-    return PRESET_DAYS.get(w.preset or "")
+def completeness_question(window: str) -> str:
+    """The data-quality question for a window label or a date: 'Is the transaction data for the last 7 days (...)
+    complete?', '... for 18 Nov complete?', '... for yesterday (...) complete?' (the home rail asks it too)."""
+    if window.startswith("all data"):
+        return f"Is all the transaction data {window.removeprefix('all data ')} complete?"
+    bare = window[:1].isdigit() or window.startswith("yesterday")
+    return f"Is the transaction data for {window if bare else 'the ' + window} complete?"
 
 
 def _range(start: date, end: date) -> str:
@@ -81,7 +91,7 @@ def _drillable(dimension: str, segment: str) -> bool:
 
 
 def drill_question(metric_label: str, dimension: str, segment: str, window: str) -> str:
-    return f"Why did {_lower(metric_label)} change for {_dim_label(dimension)} {segment} {_in(window)}?"
+    return f"Why did {_lower(metric_label)} change for {_dim(dimension)} {segment} {_in(window)}?"
 
 
 def drillable_waterfall(spec: dict, dec: DimensionDecomposition, metric_label: str, window: str) -> dict:
@@ -124,10 +134,12 @@ def follow_ups(b: AnswerBundle) -> list[FollowUp]:
         out.append(FollowUp(label=label, question=question, plan=AnalysisPlan(question=question, route="catalog", **kw)))
 
     decs = b.drivers.dimensions if b.drivers else []
-    if len(decs) >= 2 and decs[0].segments and _drillable(decs[0].dimension, seg := decs[0].segments[0].segment):
-        top, nxt = decs[0].dimension, decs[1].dimension
-        add(f"{seg} by {_dim_label(nxt)}",
-            f"Why did {m} change for {_dim_label(top)} {seg}, by {_dim_label(nxt)}, {_in(win)}?",
+    # the next-best dimension that splits into more than one segment (a South manager's region is South alone)
+    nxt = next((d.dimension for d in decs[1:] if len(d.segments) > 1), None)
+    if nxt and decs[0].segments and _drillable(decs[0].dimension, seg := decs[0].segments[0].segment):
+        top = decs[0].dimension
+        add(f"{seg} by {_dim(nxt)}",
+            f"Why did {m} change for {_dim(top)} {seg}, by {_dim(nxt)}, {_in(win)}?",
             intent="explain_change", dimensions=[nxt], baseline=p.baseline,
             filters=[*p.filters, Filter(dimension=top, values=[seg])])
     region = next((d for d in decs if d.dimension == "region" and d.segments), None)
@@ -136,7 +148,7 @@ def follow_ups(b: AnswerBundle) -> list[FollowUp]:
         r = region.segments[0].segment
         add(f"Same question for {r}", f"Why did {m} change in the {r} region {_in(win)}?", intent="explain_change",
             dimensions=p.dimensions, baseline=p.baseline, filters=[*p.filters, Filter(dimension="region", values=[r])])
-    n = _days(p.window)
+    n = (p.window.end - p.window.start).days + 1 if p.window.start and p.window.end else None
     if p.intent in ("metric_value", "breakdown", "trend"):
         if metric.type == "ratio":
             add("Explain the change", f"Why did {m} change {_in(win)}?", intent="explain_change", filters=p.filters)
@@ -151,8 +163,7 @@ def follow_ups(b: AnswerBundle) -> list[FollowUp]:
         add(f"{word} trend", f"{word} {m}, {_range(start, end)}",
             intent="trend", grain=grain, filters=p.filters, window=TimeWindow(start=start, end=end))
     if b.dq and p.intent != "data_quality":
-        add("Check data completeness", f"Is the transaction data for {win if win[:1].isdigit() else 'the ' + win} complete?",
-            intent="data_quality", metric="attempts")
+        add("Check data completeness", completeness_question(win), intent="data_quality", metric="attempts")
     # persona scope: never offer a region the persona cannot see (triage would refuse it anyway)
     out = [f for f in out if all(set(x.values) <= set(regions) for x in f.plan.filters if x.dimension == "region")]
     return out[:MAX_FOLLOW_UPS]
@@ -174,7 +185,10 @@ _NUMBER = re.compile(
 def headline_parts(headline: str | None, metric: str | None) -> list[HeadlinePart]:
     """The rendered headline cut into text and number chips; the parts join back to the headline exactly.
     ponytail: every signed delta is judged by the plan's metric; a headline quoting a second metric's delta would
-    colour it by the first. Carry the metric per number if narration ever mixes them."""
+    colour it by the first. Carry the metric per number if narration ever mixes them.
+    ponytail: contracts.format_value signs a negative INR amount but never a positive one, so a GMV fall
+    ('-₹2.50 L') is a coloured down chip while a rise ('₹3.53 Cr') reads as a plain value. Sign INR deltas where
+    the evidence formats them (a contracts change, master only) to colour rises too."""
     if not headline:
         return []
     try:
@@ -204,9 +218,9 @@ def _md(s: str) -> str:
 def markdown(b: AnswerBundle) -> str:
     """The answer as Markdown: headline, confidence, the claims with their evidence ids, data quality, and a footer."""
     lines = [f"## {_md(b.headline or 'No headline was produced.')}", "", f"Question: {_md(b.question)}"]
-    if b.confidence:
-        why = "; ".join(b.confidence_reasons)
-        lines.append(f"Confidence: {b.confidence.capitalize()}" + (f" ({_md(why)})" if why else ""))
+    if b.confidence:   # one sentence per reason: they end in a full stop already, and some carry brackets
+        why = " ".join(r if r.endswith(".") else f"{r}." for r in b.confidence_reasons)
+        lines.append(f"Confidence: {b.confidence.capitalize()}." + (f" {_md(why)}" if why else ""))
     if b.route:
         lines.append("Source: " + ("governed metric" if b.route == "catalog" else "model-written SQL (unverified)"))
     if b.claims:
