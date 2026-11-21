@@ -150,6 +150,7 @@ class AskResult(BaseModel):
     """The data of the stream's one `result` event."""
     bundle: AnswerBundle
     view: View
+    feedback: Literal["up", "down"] | None = None   # a reopened run's latest thumb (GET /api/runs/{id})
 
 
 class ExplorePlan(BaseModel):
@@ -555,13 +556,14 @@ def get_run(run_id: str, persona: str) -> AskResult:
     if _no_such_run(run_id, persona):
         raise HTTPException(404)
     if backend.pipeline_status()[0] is None:
-        bundle = _fixture_run(run_id, persona)
+        bundle, rating = _fixture_run(run_id, persona), None   # fixture mode stores no ratings
     else:
         from sherpa import runs as run_log
         bundle = run_log.get_run(run_id, persona)
+        rating = bundle and run_log.latest_rating(run_id, persona)
     if bundle is None:
         raise HTTPException(404)
-    return AskResult(bundle=bundle, view=build_view(bundle))
+    return AskResult(bundle=bundle, view=build_view(bundle), feedback=FEEDBACK.get(rating))
 
 
 @app.post("/api/runs/{run_id}/feedback", responses={404: {"description": "No such run for this persona"}})

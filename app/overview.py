@@ -48,6 +48,7 @@ class OverviewOk(BaseModel):
     kpis: list[Kpi]
     trend: ChartView
     unusual: list[DayAsk] = []   # the trend's unusual days as buttons: the keyboard's way to ask about them
+    days: list[DayAsk] = []      # every day that can be asked about, oldest first: the keyboard's way to any point
 
 
 class DataIssue(BaseModel):
@@ -122,9 +123,10 @@ def _moves(n: dict) -> list[dict]:
     return out
 
 
-def _unusual(n: dict) -> list[DayAsk]:
+def _asks(n: dict, unusual_only: bool = False) -> list[DayAsk]:
+    """The trend's days that have a question (the first day may not), oldest first; or only the unusual ones."""
     return [DayAsk(label=f"{dq._d(m['day'])} · {format_value(m['value'], 'pct')}", question=m["ask"])
-            for m in _moves(n) if m["unusual"] and m["ask"]]
+            for m in _moves(n) if m["ask"] and (m["unusual"] or not unusual_only)]
 
 
 def _trend(window: TimeWindow, baseline: TimeWindow, n: dict) -> ChartView:
@@ -173,7 +175,7 @@ def _build(persona: str, version: str, as_of: date, data_start: date) -> Overvie
     window, baseline, n = numbers(persona, as_of, data_start)
     return OverviewOk(persona=persona, as_of=f"{as_of:%d %b %Y}", window=window.label, baseline=baseline.label,
                       kpis=[_kpi(k, n[k]) for k in KPIS], trend=_trend(window, baseline, n["success_rate"]),
-                      unusual=_unusual(n["success_rate"]))
+                      unusual=_asks(n["success_rate"], unusual_only=True), days=_asks(n["success_rate"]))
 
 
 def build(persona: str) -> OverviewOk:

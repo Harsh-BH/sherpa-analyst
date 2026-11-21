@@ -1355,5 +1355,127 @@
    "label": "18 Nov · 91.4%",
    "question": "Why did success rate fall on 18 Nov compared with the day before?"
   }
+ ],
+ "days": [
+  {
+   "label": "21 Oct · 92.7%",
+   "question": "Why did success rate rise on 21 Oct compared with the day before?"
+  },
+  {
+   "label": "22 Oct · 91.5%",
+   "question": "Why did success rate fall on 22 Oct compared with the day before?"
+  },
+  {
+   "label": "23 Oct · 92.3%",
+   "question": "Why did success rate rise on 23 Oct compared with the day before?"
+  },
+  {
+   "label": "24 Oct · 92.6%",
+   "question": "Why did success rate rise on 24 Oct compared with the day before?"
+  },
+  {
+   "label": "25 Oct · 92.4%",
+   "question": "Why did success rate fall on 25 Oct compared with the day before?"
+  },
+  {
+   "label": "26 Oct · 92.5%",
+   "question": "Why did success rate rise on 26 Oct compared with the day before?"
+  },
+  {
+   "label": "27 Oct · 92.5%",
+   "question": "Why did success rate rise on 27 Oct compared with the day before?"
+  },
+  {
+   "label": "28 Oct · 92.6%",
+   "question": "Why did success rate rise on 28 Oct compared with the day before?"
+  },
+  {
+   "label": "29 Oct · 92.6%",
+   "question": "Why did success rate fall on 29 Oct compared with the day before?"
+  },
+  {
+   "label": "30 Oct · 92.6%",
+   "question": "Why did success rate rise on 30 Oct compared with the day before?"
+  },
+  {
+   "label": "31 Oct · 92.3%",
+   "question": "Why did success rate fall on 31 Oct compared with the day before?"
+  },
+  {
+   "label": "1 Nov · 92.4%",
+   "question": "Why did success rate rise on 1 Nov compared with the day before?"
+  },
+  {
+   "label": "2 Nov · 92.5%",
+   "question": "Why did success rate rise on 2 Nov compared with the day before?"
+  },
+  {
+   "label": "3 Nov · 92.6%",
+   "question": "Why did success rate rise on 3 Nov compared with the day before?"
+  },
+  {
+   "label": "4 Nov · 92.2%",
+   "question": "Why did success rate fall on 4 Nov compared with the day before?"
+  },
+  {
+   "label": "5 Nov · 92.2%",
+   "question": "Why did success rate fall on 5 Nov compared with the day before?"
+  },
+  {
+   "label": "6 Nov · 92.5%",
+   "question": "Why did success rate rise on 6 Nov compared with the day before?"
+  },
+  {
+   "label": "7 Nov · 92.6%",
+   "question": "Why did success rate rise on 7 Nov compared with the day before?"
+  },
+  {
+   "label": "8 Nov · 92.5%",
+   "question": "Why did success rate fall on 8 Nov compared with the day before?"
+  },
+  {
+   "label": "9 Nov · 92.8%",
+   "question": "Why did success rate rise on 9 Nov compared with the day before?"
+  },
+  {
+   "label": "10 Nov · 92.5%",
+   "question": "Why did success rate fall on 10 Nov compared with the day before?"
+  },
+  {
+   "label": "11 Nov · 92.7%",
+   "question": "Why did success rate rise on 11 Nov compared with the day before?"
+  },
+  {
+   "label": "12 Nov · 92.0%",
+   "question": "Why did success rate fall on 12 Nov compared with the day before?"
+  },
+  {
+   "label": "13 Nov · 91.7%",
+   "question": "Why did success rate fall on 13 Nov compared with the day before?"
+  },
+  {
+   "label": "14 Nov · 91.6%",
+   "question": "Why did success rate fall on 14 Nov compared with the day before?"
+  },
+  {
+   "label": "15 Nov · 91.6%",
+   "question": "Why did success rate rise on 15 Nov compared with the day before?"
+  },
+  {
+   "label": "16 Nov · 91.8%",
+   "question": "Why did success rate rise on 16 Nov compared with the day before?"
+  },
+  {
+   "label": "17 Nov · 92.0%",
+   "question": "Why did success rate rise on 17 Nov compared with the day before?"
+  },
+  {
+   "label": "18 Nov · 91.4%",
+   "question": "Why did success rate fall on 18 Nov compared with the day before?"
+  },
+  {
+   "label": "19 Nov · 91.6%",
+   "question": "Why did success rate rise on 19 Nov compared with the day before?"
+  }
  ]
 }

@@ -60,9 +60,12 @@ def test_unusual_days_are_two_standard_deviations_from_the_30_day_mean():
     flagged = [d for d, r in rows.items() if r["_unusual"]]
     assert flagged == ["2026-11-15"]
     assert "Unusual days" in overview._trend(W, B, n).summary and "15 Nov 88.0%" in overview._trend(W, B, n).summary
-    asks = overview._unusual(n)
+    asks = overview._asks(n, unusual_only=True)
     assert [(a.label, a.question) for a in asks] == [
         ("15 Nov · 88.0%", "Why did success rate fall on 15 Nov compared with the day before?")]
+    every = overview._asks(n)   # the keyboard's way to any point: each day with a question, oldest first
+    assert [a.question for a in every] == [r["_ask"] for r in rows.values() if "_ask" in r] and len(every) == 30
+    assert every[25] == asks[0]
     flat = _n([(d, 0.92) for d in DAYS])                              # no spread: nothing is unusual
     assert not any(r["_unusual"] for r in _current(overview._trend(W, B, flat).spec).values())
 

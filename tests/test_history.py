@@ -45,6 +45,7 @@ def test_fixture_history_is_persona_scoped(fixture_mode):
 def test_fixture_run_and_feedback_are_persona_scoped(fixture_mode):
     r = client.get("/api/runs/fx-explain-0001?persona=head").json()
     assert r["bundle"]["run_id"] == "fx-explain-0001" and r["view"]["claims"] and r["view"]["footprint"]["items"]
+    assert r["feedback"] is None   # fixture mode stores no ratings
     for url in ("/api/runs/fx-explain-0001?persona=rm_south", "/api/runs/fx-refused-0001?persona=head",
                 "/api/runs/nope?persona=head"):
         resp = client.get(url)
@@ -122,6 +123,7 @@ def test_permalink_is_persona_scoped(saved):
     for p, other in (("head", "rm_south"), ("rm_south", "head")):
         r = client.get(f"/api/runs/{saved[p].run_id}?persona={p}")
         assert r.status_code == 200 and r.json()["bundle"]["run_id"] == saved[p].run_id and r.json()["view"]["claims"]
+        assert r.json()["feedback"] is None   # unrated
         resp = client.get(f"/api/runs/{saved[p].run_id}?persona={other}")
         assert (resp.status_code, resp.json()) == (404, NOT_FOUND)
     assert client.get("/api/runs/no-such-run?persona=head").json() == NOT_FOUND
@@ -153,6 +155,8 @@ def test_feedback_is_persona_scoped_and_the_latest_wins(saved):
         rows = conn.execute("SELECT run_id, persona, rating FROM app.run_feedback WHERE run_id = ANY(%s) ORDER BY at",
                             ([h, s],)).fetchall()
     assert rows == [(h, "head", 1), (h, "head", -1), (s, "rm_south", 1)]
+    reopened = {x: client.get(f"/api/runs/{x}?persona={p}").json()["feedback"] for x, p in ((h, "head"), (s, "rm_south"))}
+    assert reopened == {h: "down", s: "up"}   # a reopened run shows its latest thumb pressed
     r = client.get("/api/runs").json()
     recent = {x["run_id"]: x for x in r["recent"]}
     assert recent[h]["feedback"] == "down" and recent[s]["feedback"] == "up"

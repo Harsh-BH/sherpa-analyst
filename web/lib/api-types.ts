@@ -362,6 +362,8 @@ export interface components {
         AskResult: {
             bundle: components["schemas"]["AnswerBundle"];
             view: components["schemas"]["View"];
+            /** Feedback */
+            feedback?: ("up" | "down") | null;
         };
         /** CatalogInfo */
         CatalogInfo: {
@@ -1017,6 +1019,11 @@ export interface components {
              * @default []
              */
             unusual: components["schemas"]["DayAsk"][];
+            /**
+             * Days
+             * @default []
+             */
+            days: components["schemas"]["DayAsk"][];
         };
         /** OverviewUnavailable */
         OverviewUnavailable: {
@@ -1198,6 +1205,8 @@ export interface components {
              * @default []
              */
             key_columns: string[];
+            /** More Label */
+            more_label?: string | null;
         };
         /** TimeWindow */
         TimeWindow: {

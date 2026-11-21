@@ -218,6 +218,6 @@ def test_driver_tables_name_their_key_columns():
     v = build_view(backend.load_fixture("explain_change"))
     key = ["segment", "share before", "share now", "rate before", "rate now", "total (pp)"]
     for _, t in v.drivers.tables:
-        assert t.key_columns == key and set(key) < set(t.columns)
+        assert t.key_columns == key and set(key) < set(t.columns) and t.more_label == "More columns (7)"
     assert v.drivers.drilldown.key_columns == key
-    assert all(e.table is None or e.table.key_columns == [] for e in v.evidence)
+    assert all(e.table is None or (e.table.key_columns == [] and e.table.more_label is None) for e in v.evidence)

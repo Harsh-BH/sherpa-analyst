@@ -28,6 +28,7 @@ class Table(BaseModel):
     columns: list[str]
     rows: list[list[str]]
     key_columns: list[str] = []   # shown by default when set; the rest behind "More columns"
+    more_label: str | None = None  # the toggle's text, 'More columns (7)'; None when nothing is hidden
 
 
 class ClaimView(BaseModel):
@@ -179,13 +180,14 @@ def _effects_table(effects: list[tuple[str, SegmentEffect]]) -> Table:
     def pct(v): return "" if v is None else f"{v * 100:.1f}%"
     def pp(v): return f"{v * 100:+.2f} pp"
     def yn(v): return "yes" if v else "no"
+    columns = ["segment", "share before", "share now", "rate before", "rate now", "mix (pp)", "rate (pp)", "total (pp)",
+               "z", "q (BH)", "supported", "significant", "material"]
     return Table(
-        columns=["segment", "share before", "share now", "rate before", "rate now", "mix (pp)", "rate (pp)",
-                 "total (pp)", "z", "q (BH)", "supported", "significant", "material"],
+        columns=columns,
         rows=[[label, pct(e.share0), pct(e.share1), pct(e.rate0), pct(e.rate1), pp(e.mix_effect), pp(e.rate_effect),
                pp(e.total_effect), "" if e.z is None else f"{e.z:.2f}", "" if e.q_value is None else f"{e.q_value:.2g}",
                yn(e.supported), yn(e.significant), yn(e.material)] for label, e in effects],
-        key_columns=KEY_COLUMNS)
+        key_columns=KEY_COLUMNS, more_label=f"More columns ({sum(c not in KEY_COLUMNS for c in columns)})")
 
 
 def simpson_callout(dec: DimensionDecomposition) -> str | None:

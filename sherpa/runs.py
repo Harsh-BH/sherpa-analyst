@@ -74,6 +74,14 @@ def get_run(run_id: str, persona: str) -> AnswerBundle | None:
     return AnswerBundle.model_validate(row["bundle"]) if row else None
 
 
+def latest_rating(run_id: str, persona: str) -> int | None:
+    """The run's latest thumb as this persona gave it (1, -1), or None when unrated."""
+    with _connect() as conn:
+        row = conn.execute("SELECT rating FROM app.run_feedback WHERE run_id = %s AND persona = %s ORDER BY at DESC LIMIT 1",
+                           (run_id, persona)).fetchone()
+    return row and row["rating"]
+
+
 def save_feedback(run_id: str, persona: str, rating: int) -> bool:
     """Record a thumbs up (1) or down (-1); False, and nothing written, under get_run's not-found rules."""
     with _connect() as conn:   # commits on exit
