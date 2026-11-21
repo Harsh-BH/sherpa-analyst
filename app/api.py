@@ -406,7 +406,7 @@ def _runs_charts(series: list[dict]) -> list[ChartView]:
             key="stage-time", title=title,
             summary=f"{title}, mean per run: " + ", ".join(f"{s} {fmt_ms(ms)}" for s, ms in means) + ".",
             spec=charts.hbars([{"stage": s, "ms": ms, "_label": fmt_ms(ms)} for s, ms in means], "stage", "ms", title,
-                              {"title": "Mean time per run", "labelExpr": "format(datum.value / 1000, '.1~f') + ' s'"},
+                              {"title": "Mean time per run", "tickCount": 4, "labelOverlap": "greedy", "labelExpr": "format(datum.value / 1000, '.1~f') + ' s'"},
                               {"Mean": charts.MIX})))
     timed = [r for r in rows if isinstance(r["total"], int | float)]
     if timed:

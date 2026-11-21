@@ -4,6 +4,7 @@ import { ChevronRight, CircleCheck, CircleX } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Run } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 const STAGE_LABELS: Record<string, string> = {
   plan: "Plan",
@@ -33,7 +34,7 @@ export function Trace({ run }: { run: Run }) {
     const { summary, stages } = run.result.view.footprint;
     const line = (
       <>
-        <CircleCheck className="size-4 text-positive" />
+        <CircleCheck className={cn("size-4", run.result.bundle.status === "answered" ? "text-positive" : "text-muted-foreground")} />
         <span>Trace</span>
         <span className="font-mono text-xs text-muted-foreground">{summary || "done"}</span>
       </>
