@@ -531,6 +531,11 @@ def _fixture_run(run_id: str, persona: str) -> AnswerBundle | None:
     return next((b for b in backend.fixture_runs(persona) if b.run_id == run_id), None)
 
 
+def _no_such_run(run_id: str, persona: str) -> bool:
+    """An unknown persona, or an id Postgres cannot even compare (a NUL byte), is just another run not found."""
+    return "\x00" in run_id or persona not in load_access().personas
+
+
 @app.get("/api/history", responses={422: {"description": "Unknown persona"}})
 def history(persona: str, limit: int = Query(20, ge=1, le=50)) -> list[HistoryItem]:
     """The persona's own app runs that can be reopened, newest first."""
@@ -547,6 +552,8 @@ def history(persona: str, limit: int = Query(20, ge=1, le=50)) -> list[HistoryIt
 @app.get("/api/runs/{run_id}", responses={404: {"description": "No such run for this persona"}})
 def get_run(run_id: str, persona: str) -> AskResult:
     """A saved run as the same AskResult /api/ask streams, its view rebuilt from the stored bundle."""
+    if _no_such_run(run_id, persona):
+        raise HTTPException(404)
     if backend.pipeline_status()[0] is None:
         bundle = _fixture_run(run_id, persona)
     else:
@@ -560,6 +567,8 @@ def get_run(run_id: str, persona: str) -> AskResult:
 @app.post("/api/runs/{run_id}/feedback", responses={404: {"description": "No such run for this persona"}})
 def run_feedback(run_id: str, req: FeedbackRequest) -> FeedbackSaved:
     """Thumbs up (1) or down (-1). Insert-only: the latest rating wins when read."""
+    if _no_such_run(run_id, req.persona):
+        raise HTTPException(404)
     if backend.pipeline_status()[0] is None:
         found = _fixture_run(run_id, req.persona) is not None
     else:

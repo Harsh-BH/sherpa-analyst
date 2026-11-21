@@ -56,6 +56,23 @@ def test_fixture_run_and_feedback_are_persona_scoped(fixture_mode):
     assert feedback("fx-explain-0001", "head", 0).status_code == 422
 
 
+@pytest.mark.parametrize("fixtures", [True, False])
+def test_unknown_persona_or_nul_byte_is_a_bare_404(monkeypatch, fixtures):
+    """Checked before any lookup: in DB mode a NUL byte would reach psycopg and give a 500."""
+    if fixtures:
+        monkeypatch.setenv("SHERPA_UI_FIXTURES", "1")
+    else:
+        monkeypatch.delenv("SHERPA_UI_FIXTURES", raising=False)
+        monkeypatch.setattr(backend, "pipeline_status", lambda: (object(), None))   # DB mode; nothing is looked up
+    for url in ("/api/runs/abc%00def?persona=head", "/api/runs/fx-explain-0001?persona=he%00ad",
+                "/api/runs/fx-explain-0001?persona=nobody"):
+        resp = client.get(url)
+        assert (resp.status_code, resp.json()) == (404, NOT_FOUND), url
+    for run_id, persona in (("a%00b", "head"), ("fx-explain-0001", "he\x00ad"), ("fx-explain-0001", "nobody")):
+        resp = feedback(run_id, persona, 1)
+        assert (resp.status_code, resp.json()) == (404, NOT_FOUND), (run_id, persona)
+
+
 # ------------------------------------------------------------------ the database
 def _bundle(persona: str) -> AnswerBundle:
     return backend.load_fixture("explain_change").model_copy(

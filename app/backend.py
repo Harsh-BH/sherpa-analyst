@@ -80,8 +80,11 @@ def load_fixture(name: str, on_partial: Callable[[AnswerBundle], None] | None = 
     """on_partial, as the pipeline calls it: an answered fixture without its headline, claims and confidence."""
     b = AnswerBundle.model_validate_json((FIXTURES / f"{name}.json").read_text())
     if on_partial is not None and b.status == "answered":
-        on_partial(b.model_copy(deep=True, update={"headline": None, "claims": [], "confidence": None,
-                                                   "confidence_reasons": []}))
+        try:   # like the pipeline's: a failing callback never breaks the run
+            on_partial(b.model_copy(deep=True, update={"headline": None, "claims": [], "confidence": None,
+                                                       "confidence_reasons": []}))
+        except Exception:  # noqa: BLE001
+            pass
     return b
 
 

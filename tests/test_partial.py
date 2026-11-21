@@ -93,6 +93,14 @@ def test_fixture_mode_sends_a_partial_without_the_narrative_first(monkeypatch):
     assert r["bundle"]["headline"] and r["view"]["claims"]
 
 
+def test_fixture_mode_survives_a_raising_on_partial(monkeypatch):
+    monkeypatch.setenv("SHERPA_UI_FIXTURES", "1")
+    def boom(_):
+        raise RuntimeError("ui went away")
+    b = backend.answer("Why did success rate drop last week?", "head", None, None, boom)
+    assert b.status == "answered" and b.headline
+
+
 @pytest.mark.parametrize("fixture", ["clarify", "refused", "error"])
 def test_fixture_mode_sends_no_partial_for_runs_that_never_analysed(monkeypatch, fixture):
     monkeypatch.setenv("SHERPA_UI_FIXTURES", "1")
