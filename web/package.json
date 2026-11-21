@@ -8,7 +8,8 @@
     "start": "next start -H 127.0.0.1",
     "lint": "eslint",
     "types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o lib/api-types.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check": "node --no-warnings lib/api.check.mjs"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",

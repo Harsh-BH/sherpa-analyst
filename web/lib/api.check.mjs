@@ -1,4 +1,4 @@
-// Self-check for the SSE reader in api.ts (no server needed): node --no-warnings lib/api.check.mjs
+// Self-check for the SSE reader in api.ts (no server needed): pnpm -C web check
 import assert from "node:assert/strict";
 
 const { ask } = await import("./api.ts");
