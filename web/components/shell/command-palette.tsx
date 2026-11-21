@@ -19,9 +19,6 @@ import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useSherpa } from "@/lib/store";
 
-/** One entry of the palette's Recent group: the persona's last 8 runs from /api/history, as the sidebar lists them. */
-export type RecentItem = { label: string; onSelect(): void };
-
 type Item = { key: string; group: string; label: string; hint?: string; icon: LucideIcon; run(): void; keep?: boolean };
 
 const Ctx = createContext<(open: boolean) => void>(() => {});
@@ -40,8 +37,6 @@ const typing = (t: EventTarget | null) =>
  * when nothing is being typed and no dialog or sheet is open. */
 export function PaletteProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { history, openRun } = useSherpa();
-  const recent = history.slice(0, 8).map((h) => ({ label: h.question, onSelect: () => void openRun(h.run_id) }));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
@@ -62,20 +57,12 @@ export function PaletteProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={setOpen}>
       {children}
-      <CommandPalette open={open} onOpenChange={setOpen} recent={recent} />
+      <CommandPalette open={open} onOpenChange={setOpen} />
     </Ctx.Provider>
   );
 }
 
-export function CommandPalette({
-  open,
-  onOpenChange,
-  recent = [],
-}: {
-  open: boolean;
-  onOpenChange(open: boolean): void;
-  recent?: RecentItem[];
-}) {
+function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -86,16 +73,17 @@ export function CommandPalette({
           className="fixed top-[12vh] left-1/2 z-50 flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-lg duration-150 ease-out data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
         >
           <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-          <Palette close={() => onOpenChange(false)} recent={recent} />
+          <Palette close={() => onOpenChange(false)} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
   );
 }
 
-/** The palette's body: mounted on each open, so the filter and the active option start fresh. */
-function Palette({ close, recent }: { close(): void; recent: RecentItem[] }) {
-  const { meta, persona, setPersona, ask } = useSherpa();
+/** The palette's body: mounted on each open, so the filter and the active option start fresh. Recent: the persona's
+ * last 8 runs from /api/history, as the sidebar lists them. */
+function Palette({ close }: { close(): void }) {
+  const { meta, persona, setPersona, ask, history, openRun } = useSherpa();
   const router = useRouter();
   const pathname = usePathname();
   const mac = useIsMac();
@@ -112,7 +100,13 @@ function Palette({ close, recent }: { close(): void; recent: RecentItem[] }) {
 
   const items: Item[] = [
     ...NAV.map(({ href, label, icon }) => ({ key: href, group: "Pages", label, icon, run: () => go(href) })),
-    ...recent.map((r, i) => ({ key: `recent-${i}`, group: "Recent", label: r.label, icon: Clock, run: r.onSelect })),
+    ...history.slice(0, 8).map((h) => ({
+      key: `recent-${h.run_id}`,
+      group: "Recent",
+      label: h.question,
+      icon: Clock,
+      run: () => void openRun(h.run_id),
+    })),
     ...questions.map((q) => ({
       key: `q-${q.question}`,
       group: "Questions",

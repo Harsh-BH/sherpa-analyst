@@ -1,6 +1,16 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import * as api from "@/lib/api";
@@ -73,6 +83,7 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
   const [railTab, setRailTab] = useState("evidence");
   const [railOpen, setRailOpen] = useState(false);
   const [recent, setRecent] = useState<{ persona: string; items: api.HistoryItem[] }>({ persona: "", items: [] });
+  const [finished, countFinished] = useReducer((n: number) => n + 1, 0); // asks that reached their result
   const router = useRouter();
   const pathname = usePathname();
   const runCounter = useRef(0);
@@ -137,7 +148,11 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
           {
             stage: (e) => live() && setRun((r) => ({ ...r, stages: [...r.stages, { ...e, at: since() }] })),
             partial: (partial) => live() && setRun((r) => ({ ...r, partial })),
-            result: (result) => live() && setRun((r) => ({ ...r, status: "done", result, resultAt: since() })),
+            result: (result) => {
+              if (!live()) return;
+              setRun((r) => ({ ...r, status: "done", result, resultAt: since() }));
+              countFinished(); // the run log has a new run: Recent refetches
+            },
           },
           c.signal,
         );
@@ -176,8 +191,8 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
     [persona, loadMeta, selectEvidence, router, pathname],
   );
 
-  // Recent runs: on persona change and after each finished ask (or reopened run); kept with the persona they are for.
-  const doneId = run.status === "done" ? run.result?.bundle.run_id : undefined;
+  // Recent runs: on persona change and after each finished ask (not when one starts, nor on reopening a run, which
+  // adds none); kept with the persona they are for.
   useEffect(() => {
     if (!persona) return;
     let live = true;
@@ -188,7 +203,7 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
     return () => {
       live = false;
     };
-  }, [persona, doneId]);
+  }, [persona, finished]);
   const history = recent.persona === persona ? recent.items : NO_HISTORY;
 
   const value = useMemo(

@@ -50,6 +50,18 @@ test("a permalink opens its run on load, and a new question drops it from the UR
   await expect(page).toHaveURL(/\/$/);
 });
 
+test("a permalink goes straight to its run: the home overview never loads in between", async ({ page }) => {
+  const home: string[] = [];
+  page.on("request", (r) => {
+    const p = new URL(r.url()).pathname;
+    if (p === "/api/overview" || p === "/api/data-health") home.push(p);
+  });
+  await open(page, "/?run=fx-recon-0001");
+  await expect(page.getByTestId("headline")).toHaveText(fixture("reconcile").headline);
+  await expect(page.getByTestId("overview")).toHaveCount(0);
+  expect(home).toEqual([]);
+});
+
 test("a permalink to another persona's run shows nothing of it", async ({ page }) => {
   await open(page, "/?run=fx-refused-0001"); // rm_south's run, opened as head
   await expect(page.getByTestId("error-card")).toContainText("not found for this persona");
@@ -78,6 +90,13 @@ test("Recent refetches after each finished ask", async ({ page }) => {
   await page.getByTestId("ask-button").click();
   await expect(page.getByTestId("headline")).toBeVisible();
   await expect.poll(() => fetched).toBe(2);
+  // a second ask after a finished one: one more fetch when it finishes, none when it starts
+  await page.getByTestId("question").fill("Why did success rate drop last week?");
+  await page.getByTestId("ask-button").click();
+  await expect(page.getByTestId("headline")).toBeVisible();
+  await expect.poll(() => fetched).toBe(3);
+  await page.waitForTimeout(500);
+  expect(fetched).toBe(3);
 });
 
 test("thumbs: aria-pressed, Thanks, and the other thumb undoes", async ({ page }) => {

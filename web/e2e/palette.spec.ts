@@ -66,6 +66,20 @@ test("a question from the palette is asked on the Ask page", async ({ page }) =>
   await expect(page.getByTestId("trace")).toBeVisible();
 });
 
+test("the Recent group lists the persona's runs from the history, and Enter reopens one", async ({ page }) => {
+  await open(page, "/eval");
+  await expect(page.getByTestId("recent").getByTestId("recent-run")).toHaveCount(5); // fixture history has loaded
+  await page.keyboard.press("ControlOrMeta+k");
+  const recent = palette(page).getByRole("group", { name: "Recent" });
+  await expect(recent.getByTestId("palette-option")).toHaveCount(5);
+  await filter(page).fill("recent");
+  await expect(options(page).first()).toHaveAttribute("data-group", "Recent");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/\?run=fx-recon-0001$/);
+  await expect(page.getByTestId("headline")).toBeVisible();
+});
+
 test("switching persona from the palette", async ({ page }) => {
   await open(page);
   await page.keyboard.press("ControlOrMeta+k");

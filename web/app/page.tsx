@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Chips } from "@/components/ask/chips";
@@ -44,12 +44,21 @@ function RunLink() {
   return null;
 }
 
+const noEvents = () => () => {};
+/** `/?run=<id>` that openRun has not loaded yet: home's overview and rail stay out, so they neither flash nor fetch.
+ * Read from the URL on each render (no event fires for replaceState); the server and hydration say no. */
+function useOpening(run: Run) {
+  const linked = useSyncExternalStore(noEvents, () => new URLSearchParams(window.location.search).has("run"), () => false);
+  return linked && run.status === "idle";
+}
+
 /** The finished answer, or while running the numbers that arrived before its narrative. */
 const shown = (run: Run) => (run.status === "done" ? run.result : run.status === "running" ? run.partial : undefined);
 
 function Center() {
   const { metaError, run } = useSherpa();
   const result = shown(run);
+  const opening = useOpening(run);
   return (
     <>
       <QuestionBar />
@@ -60,7 +69,7 @@ function Center() {
             {metaError}. Personas and example questions did not load; Ask tries again.
           </Banner>
         )}
-        {run.status === "idle" && <Overview />}
+        {run.status === "idle" && !opening && <Overview />}
         <Chips />
         {run.status !== "idle" && <Trace run={run} />}
         {run.status === "failed" && (
@@ -78,6 +87,7 @@ function Center() {
 export default function AskPage() {
   const { run, railOpen, setRailOpen } = useSherpa();
   const result = shown(run);
+  const opening = useOpening(run);
   return (
     <>
       <Suspense fallback={null}>
@@ -90,7 +100,7 @@ export default function AskPage() {
         onRailOpenChange={setRailOpen}
         center={<Center />}
         rail={
-          result ? <AnswerRail bundle={result.bundle} view={result.view} /> : <HomeRail />
+          result ? <AnswerRail bundle={result.bundle} view={result.view} /> : opening ? null : <HomeRail />
         }
       />
     </>
