@@ -24,11 +24,11 @@
 - No `dangerouslySetInnerHTML`, no `eval`, and no `href` or `src` built from data. Data-derived text is rendered only as React text nodes.
 - Data-quality banners always render above the headline and are never collapsed.
 - **Chrome hue rule:** hue appears only for data quality and confidence; the rest is grey. Charts are recoloured through `web/lib/chart-colors.json`.
-- **Tokens:** light bg `#F6F6F7`, surface `#FFFFFF`, text `#111214`, muted `#5A5E66`, border `#E1E2E5`, accent `#2456C4`, positive `#167A3C`, negative `#C22F2A`, warning `#8C5800`. Dark bg `#0A0B0D`, surface `#131417`, text `#EDEEF0`, muted `#9A9EA7`, border `#25272C`, accent `#7FA8FF`, positive `#5ED18E`, negative `#FF7B74`, warning `#F0BF4F`. Input outlines use a border step of at least 3:1 (light `#B9BCC2`, dark `#4A4E56`). Fonts: Geist and Geist Mono through `next/font/google`, with `tabular-nums` on figures.
+- **Tokens:** light bg `#F6F6F7`, surface `#FFFFFF`, text `#111214`, muted `#5A5E66`, border `#E1E2E5`, accent `#2456C4`, positive `#167A3C`, negative `#C22F2A`, warning `#8C5800`. Dark bg `#0A0B0D`, surface `#131417`, text `#EDEEF0`, muted `#9A9EA7`, border `#25272C`, accent `#7FA8FF`, positive `#5ED18E`, negative `#FF7B74`, warning `#F0BF4F`. Input outlines use a border step of at least 3:1 (light `#8C8F95`, dark `#5E626A`). Fonts: Geist and Geist Mono through `next/font/google`, with `tabular-nums` on figures.
 - **Dependencies:** pnpm only; pin exact versions; no dependency beyond those named in the spec and this plan.
 - Do not build Docker images (repo `CLAUDE.md`). Never run `docker compose down -v` or prune volumes.
 - All work on `feature/nextjs-ui`; `main` is not touched until the final merge.
-- **Commits:** small, conventional, staging explicit paths only. Every message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Commits:** small, conventional, staging explicit paths only. No AI attribution lines (no Co-Authored-By or "Generated with" trailers).
 - **Stay green:** `uv run pytest` must pass after every Python task. After every web task, `pnpm -C web build`, `pnpm -C web exec tsc --noEmit` and the e2e suite must pass.
 
 ## Review Focus
