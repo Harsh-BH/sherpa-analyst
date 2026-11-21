@@ -194,7 +194,7 @@ def test_overview_serves_its_fixture_in_fixture_mode():
         assert k["value"] and k["delta"] and k["summary"] and k["direction"] in ("up", "down", "flat")
         assert k["tone"] in ("positive", "negative", "neutral") and k["spark"]["height"] == 40
         assert len(k["spark"]["data"]["values"]) == 30
-    assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["mark"]["type"] == "line"
+    assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["layer"][0]["mark"]["type"] == "line"
     assert client.get("/api/overview?persona=nobody").status_code == 422
     # the fixture is head's: another persona gets no panel rather than head's all-region numbers
     assert client.get("/api/overview?persona=rm_south").json() == {"available": False,

@@ -13,6 +13,9 @@ export type RunsResponse = S["RunsOk"] | S["RunsUnavailable"];
 /** GET /api/overview?persona=<key>: `available: false` (with a reason) means hide the panel. */
 export type OverviewResponse = S["OverviewOk"] | S["OverviewUnavailable"];
 export type Kpi = S["Kpi"];
+/** GET /api/data-health?persona=<key>: the home rail's dq issues, last 30 days; `available: false` hides it. */
+export type DataHealthResponse = S["DataHealth"] | S["OverviewUnavailable"];
+export type DataIssue = S["DataIssue"];
 /** A dashboard chart: draw `spec` with VegaChart, use `summary` as its aria-label. */
 export type ChartView = S["ChartView"];
 /** A trace stage: `fraction` is its share of the total, a bar width only (null without a total). */
@@ -71,6 +74,11 @@ export async function sendFeedback(runId: string, persona: string, rating: 1 | -
   });
   return res.json();
 }
+
+export const getDataHealth = (persona: string, signal?: AbortSignal) =>
+  request(`/api/data-health?persona=${encodeURIComponent(persona)}`, { signal }).then(
+    (r) => r.json() as Promise<DataHealthResponse>,
+  );
 
 export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   const res = await request("/api/explore/plan", {

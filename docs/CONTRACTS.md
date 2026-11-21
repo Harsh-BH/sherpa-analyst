@@ -170,7 +170,9 @@ def recon_bridge(recon: ReconResult) -> dict
 #                          sherpa.runs.recent_runs/run_series/run_stats/history/get_run/save_feedback, sherpa.charts,
 #                          and reads eval/results/latest.json
 # app/overview.py (home):  sherpa.compiler.compile_metric -> sherpa.db.run_query as the persona (the governed path:
-#                          guard, RLS, cost gate); no LLM, no app.runs write; cached per (persona, data_version)
+#                          guard, RLS, cost gate); no LLM, no app.runs write; cached per (persona, data_version).
+#                          data_health (GET /api/data-health): compile_dq_queries -> run_query -> sherpa.dq.run_checks,
+#                          same path and cache key
 # web/ (Next.js):          talks only to app/api.py over HTTP; every number it shows is a string from app/view.py
 ```
 

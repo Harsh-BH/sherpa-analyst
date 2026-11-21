@@ -1,0 +1,21 @@
+{
+ "available": true,
+ "persona": "head",
+ "window": "last 30 days (21 Oct - 19 Nov 2026)",
+ "issues": [
+  {
+   "check": "missing_data",
+   "severity": "error",
+   "when": "16 Nov",
+   "text": "PG_C has no data on 16 Nov 02:00–08:00 IST.",
+   "question": "Is the transaction data for 16 Nov complete?"
+  },
+  {
+   "check": "duplicates",
+   "severity": "warn",
+   "when": "18 Nov",
+   "text": "PG_B sent 1,233 duplicate events on 18 Nov (11.2% of 10,990); they were removed by deduplication.",
+   "question": "Is the transaction data for 18 Nov complete?"
+  }
+ ]
+}

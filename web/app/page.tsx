@@ -9,6 +9,7 @@ import { QuestionBar } from "@/components/ask/question-bar";
 import { Banner, BundleView } from "@/components/answer/answer-view";
 import { Trace } from "@/components/answer/trace";
 import { AnswerRail } from "@/components/rail/answer-rail";
+import { HomeRail } from "@/components/rail/home-rail";
 import { Workspace } from "@/components/shell/workspace";
 import { useSherpa, type Run } from "@/lib/store";
 
@@ -89,11 +90,7 @@ export default function AskPage() {
         onRailOpenChange={setRailOpen}
         center={<Center />}
         rail={
-          result ? (
-            <AnswerRail bundle={result.bundle} view={result.view} />
-          ) : (
-            <p className="p-4 text-sm text-muted-foreground">The plan, evidence and footprints of an answer show here.</p>
-          )
+          result ? <AnswerRail bundle={result.bundle} view={result.view} /> : <HomeRail />
         }
       />
     </>
