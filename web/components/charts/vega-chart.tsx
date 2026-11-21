@@ -33,7 +33,11 @@ function recolor(v: unknown, map: Map<string, string>): unknown {
   return v;
 }
 
-function Chart({ spec, lib, onDatumClick, downloadName }: ChartProps & { lib: VegaEmbed }) {
+function Chart({ spec: next, lib, onDatumClick, downloadName }: ChartProps & { lib: VegaEmbed }) {
+  // The spec by content: an equal one from a newer response (an answer's result after its partial) keeps the drawn
+  // chart instead of blanking and re-embedding it.
+  const [spec, setSpec] = useState(next);
+  if (next !== spec && JSON.stringify(next) !== JSON.stringify(spec)) setSpec(next);
   const ref = useRef<HTMLDivElement>(null);
   const theme: ChartTheme = useSyncExternalStore(subscribeTheme, isDark, () => false) ? "dark" : "light";
   const [failed, setFailed] = useState<{ spec: Spec; message: string } | null>(null);

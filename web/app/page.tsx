@@ -10,7 +10,7 @@ import { Banner, BundleView } from "@/components/answer/answer-view";
 import { Trace } from "@/components/answer/trace";
 import { AnswerRail } from "@/components/rail/answer-rail";
 import { Workspace } from "@/components/shell/workspace";
-import { useSherpa } from "@/lib/store";
+import { useSherpa, type Run } from "@/lib/store";
 
 /** `/?q=…&persona=…&fixture=…` asks once, after meta has loaded; an unknown persona is ignored. */
 function DeepLink() {
@@ -29,9 +29,12 @@ function DeepLink() {
   return null;
 }
 
+/** The finished answer, or while running the numbers that arrived before its narrative. */
+const shown = (run: Run) => (run.status === "done" ? run.result : run.status === "running" ? run.partial : undefined);
+
 function Center() {
   const { metaError, run } = useSherpa();
-  const result = run.status === "done" ? run.result : undefined;
+  const result = shown(run);
   return (
     <>
       <QuestionBar />
@@ -59,7 +62,7 @@ function Center() {
 
 export default function AskPage() {
   const { run, railOpen, setRailOpen } = useSherpa();
-  const result = run.status === "done" ? run.result : undefined;
+  const result = shown(run);
   return (
     <>
       <Suspense fallback={null}>

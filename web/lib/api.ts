@@ -55,10 +55,11 @@ export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   return res.json();
 }
 
-/** POST /api/ask and read its SSE stream: `stage` events as stages start, then one `result`. */
+/** POST /api/ask and read its SSE stream: `stage` events as stages start, at most one `partial` (an AskResult with
+ * `view.partial`: the numbers before the narrative; its bundle is not final), then one `result`. */
 export async function ask(
   req: AskRequest,
-  on: { stage(e: Stage): void; result(r: AskResult): void },
+  on: { stage(e: Stage): void; partial?(r: AskResult): void; result(r: AskResult): void },
   signal: AbortSignal,
 ): Promise<void> {
   const res = await request("/api/ask", {
@@ -89,7 +90,7 @@ export async function ask(
         if (line.startsWith("event:")) event = line.slice(6).trim();
         else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
-      if (event !== "stage" && event !== "result") continue;
+      if (event !== "stage" && event !== "partial" && event !== "result") continue;
       let payload;
       try {
         payload = JSON.parse(data.join("\n"));
@@ -97,6 +98,7 @@ export async function ask(
         throw new Error("The answer stream was malformed");
       }
       if (event === "stage") on.stage(payload);
+      else if (event === "partial") on.partial?.(payload);
       else {
         gotResult = true;
         on.result(payload);
