@@ -164,12 +164,12 @@ def test_runs_ok(monkeypatch):
     monkeypatch.setattr(sherpa.runs, "recent_runs", lambda n: [{
         "run_id": "r1", "asked_at": __import__("datetime").datetime(2026, 11, 20, 10, 0), "persona": "head", "question": "q",
         "status": "answered", "route": None, "confidence": "high", "timings_ms": {"total": 4200, "plan": 90},
-        "llm_usage": {"backend": "claude-cli", "cost_usd": 0.1234}}])
+        "llm_usage": {"backend": "claude-cli", "cost_usd": 0.1234}, "rating": -1}])
     r = client.get("/api/runs").json()
-    assert r["status"] == "ok" and len(r["tiles"]) == 7 and r["tiles"][0] == {"label": "Runs", "value": "3"}
-    assert r["tiles"][6]["value"] == "n/a"
+    assert r["status"] == "ok" and len(r["tiles"]) == 8 and r["tiles"][0] == {"label": "Runs", "value": "3"}
+    assert r["tiles"][6]["value"] == "n/a" and r["tiles"][7] == {"label": "Helpful", "value": "n/a"}
     row = r["recent"][0]
-    assert row["total"] == "4.2 s" and row["cost"] == "$0.12" and row["route"] == "n/a"
+    assert row["total"] == "4.2 s" and row["cost"] == "$0.12" and row["route"] == "n/a" and row["feedback"] == "down"
     assert {"label": "plan", "value": "90 ms"} in row["footprint"]
 
 

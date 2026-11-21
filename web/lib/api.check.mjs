@@ -30,4 +30,11 @@ await assert.rejects(
   run(() => Promise.reject(new TypeError("fetch failed"))),
   { message: "Sherpa API unreachable: fetch failed" },
 );
+
+// getRun: the API's bare 404 (missing, or another persona's run) is null; any other failure still throws
+const { getRun } = await import("./api.ts");
+globalThis.fetch = async () => new Response('{"detail":"Not Found"}', { status: 404 });
+assert.equal(await getRun("r1", "head"), null);
+globalThis.fetch = async () => new Response("boom", { status: 500 });
+await assert.rejects(getRun("r1", "head"), { message: "Sherpa API unreachable: HTTP 500 boom" });
 console.log("api.check: ok");

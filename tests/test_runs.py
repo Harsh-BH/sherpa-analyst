@@ -101,6 +101,7 @@ def test_run_stats(cleanup, monkeypatch):
         cleanup.append(b.run_id)
         runs.save_run(b)
     s = runs.run_stats()
-    assert set(s) == {"runs", "p50_ms", "p95_ms", "refusal_rate", "clarify_rate", "cache_hit_rate", "llm_cost_usd"}
+    assert set(s) == {"runs", "p50_ms", "p95_ms", "refusal_rate", "clarify_rate", "cache_hit_rate", "llm_cost_usd",
+                      "helpful_rate"}
     assert s["runs"] >= 3 and 0 < s["refusal_rate"] < 1 and 0 < s["clarify_rate"] < 1
     assert s["p50_ms"] <= s["p95_ms"] and 0 < s["cache_hit_rate"] <= 1 and s["llm_cost_usd"] >= 0.03

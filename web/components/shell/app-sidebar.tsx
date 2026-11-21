@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, FlaskConical, History, MessageSquare, TriangleAlert } from "lucide-react";
 
+import { RecentRuns } from "@/components/shell/recent-runs";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -88,6 +89,7 @@ export function AppSidebar() {
             ))}
           </SidebarMenu>
         </SidebarGroup>
+        <RecentRuns />
       </SidebarContent>
       <SidebarFooter>
         {meta?.fixture_mode && (

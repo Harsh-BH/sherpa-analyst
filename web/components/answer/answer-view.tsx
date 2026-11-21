@@ -7,6 +7,7 @@ import { Claims } from "@/components/answer/claims";
 import { Drivers } from "@/components/answer/drivers";
 import { KeyChart } from "@/components/answer/key-chart";
 import { Recon } from "@/components/answer/recon";
+import { RunActions } from "@/components/answer/run-actions";
 import { Clarification, ErrorCard, RefusalCard } from "@/components/answer/states";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -85,6 +86,7 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
             Governed metric
           </span>
         )}
+        <RunActions key={bundle.run_id} runId={bundle.run_id} persona={bundle.persona} className="ml-auto" />
       </div>
       {bundle.route === "sql" && (
         <Banner tone="warn" data-testid="sql-warning">

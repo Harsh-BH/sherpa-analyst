@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import * as api from "@/lib/api";
 
@@ -27,6 +28,10 @@ type Sherpa = {
   setDraft(q: string): void;
   run: Run;
   ask(question: string, opts?: AskOptions): Promise<void>;
+  /** The persona's reopenable runs, newest first (GET /api/history); refetched on persona change and after each run. */
+  history: api.HistoryItem[];
+  /** Reopen a saved run like a finished ask (no stages stream) at /?run=<id>; from another page it navigates there. */
+  openRun(runId: string): Promise<void>;
   selectedEvidenceId: string | null;
   /** Selecting evidence also opens the rail's Evidence tab, even when that id was already selected. */
   selectEvidence(id: string | null): void;
@@ -38,6 +43,7 @@ type Sherpa = {
 };
 
 const PERSONA_KEY = "sherpa.persona";
+const NO_HISTORY: api.HistoryItem[] = [];
 const Ctx = createContext<Sherpa | null>(null);
 
 function storedPersona(): string | null {
@@ -64,6 +70,9 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
   const [railTab, setRailTab] = useState("evidence");
   const [railOpen, setRailOpen] = useState(false);
+  const [recent, setRecent] = useState<{ persona: string; items: api.HistoryItem[] }>({ persona: "", items: [] });
+  const router = useRouter();
+  const pathname = usePathname();
   const runCounter = useRef(0);
   const controller = useRef<AbortController | null>(null);
 
@@ -111,6 +120,11 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
       setDraft(question);
       setRun({ status: "running", question, stages: [] });
       selectEvidence(null);
+      const url = new URL(window.location.href); // a new answer is no longer the reopened run
+      if (url.searchParams.has("run")) {
+        url.searchParams.delete("run");
+        window.history.replaceState(null, "", url);
+      }
       const { persona: who, ...rest } = opts;
       try {
         // Never send an empty persona: without meta, fetch it now (and fail with its message).
@@ -131,6 +145,49 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
     [persona, loadMeta, selectEvidence],
   );
 
+  const openRun = useCallback(
+    async (runId: string) => {
+      if (pathname !== "/") {
+        router.push(`/?run=${encodeURIComponent(runId)}`); // the Ask page opens ?run= on load
+        return;
+      }
+      const id = ++runCounter.current;
+      const live = () => id === runCounter.current;
+      controller.current?.abort();
+      selectEvidence(null);
+      try {
+        const p = persona ?? knownPersona(await loadMeta(), null);
+        const result = await api.getRun(runId, p);
+        if (!live()) return;
+        if (!result) {
+          setRun({ status: "failed", stages: [], error: `Run ${runId} was not found for this persona.` });
+          return;
+        }
+        setDraft(result.bundle.question);
+        setRun({ status: "done", question: result.bundle.question, stages: [], result });
+        window.history.replaceState(null, "", `/?run=${encodeURIComponent(runId)}`);
+      } catch (e) {
+        if (live()) setRun({ status: "failed", stages: [], error: e instanceof Error ? e.message : String(e) });
+      }
+    },
+    [persona, loadMeta, selectEvidence, router, pathname],
+  );
+
+  // Recent runs: on persona change and after each finished ask (or reopened run); kept with the persona they are for.
+  const doneId = run.status === "done" ? run.result?.bundle.run_id : undefined;
+  useEffect(() => {
+    if (!persona) return;
+    let live = true;
+    api.getHistory(persona).then(
+      (items) => live && setRecent({ persona, items }),
+      () => live && setRecent({ persona, items: [] }), // no run log (no DB): the Recent list hides
+    );
+    return () => {
+      live = false;
+    };
+  }, [persona, doneId]);
+  const history = recent.persona === persona ? recent.items : NO_HISTORY;
+
   const value = useMemo(
     () => ({
       meta,
@@ -141,6 +198,8 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
       setDraft,
       run,
       ask,
+      history,
+      openRun,
       selectedEvidenceId,
       selectEvidence,
       railTab,
@@ -148,7 +207,7 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
       railOpen,
       setRailOpen,
     }),
-    [meta, metaError, persona, setPersona, draft, run, ask, selectedEvidenceId, selectEvidence, railTab, railOpen],
+    [meta, metaError, persona, setPersona, draft, run, ask, history, openRun, selectedEvidenceId, selectEvidence, railTab, railOpen],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

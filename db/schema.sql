@@ -165,6 +165,16 @@ CREATE TABLE IF NOT EXISTS app.runs (
     timings_ms    jsonb,
     llm_usage     jsonb,
     error         text,
-    source        text NOT NULL DEFAULT 'app'   -- app | test | eval (SHERPA_RUN_SOURCE); the Runs page reads 'app' only
+    source        text NOT NULL DEFAULT 'app',  -- app | test | eval (SHERPA_RUN_SOURCE); the Runs page reads 'app' only
+    bundle        jsonb                         -- the whole AnswerBundle: history and permalinks reopen it
 );
 ALTER TABLE app.runs ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'app';   -- databases created before it
+ALTER TABLE app.runs ADD COLUMN IF NOT EXISTS bundle jsonb;
+
+-- Thumbs up/down on a run. Insert-only (the app role has no UPDATE): the latest row per run wins when read.
+CREATE TABLE IF NOT EXISTS app.run_feedback (
+    run_id   text NOT NULL,
+    persona  text NOT NULL,
+    rating   smallint NOT NULL CHECK (rating IN (-1, 1)),
+    at       timestamptz NOT NULL DEFAULT now()
+);

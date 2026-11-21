@@ -17,6 +17,8 @@ export type Kpi = S["Kpi"];
 export type ChartView = S["ChartView"];
 /** A trace stage: `fraction` is its share of the total, a bar width only (null without a total). */
 export type StageTime = S["StageTime"];
+/** A run the persona can reopen: GET /api/history?persona=<key>, newest first. */
+export type HistoryItem = S["HistoryItem"];
 /** `elapsed` is `t_ms` formatted by the API (fmt_ms): the trace shows it as-is. */
 export type Stage = { name: string; t_ms: number; elapsed: string };
 
@@ -45,6 +47,30 @@ export const getOverview = (persona: string, signal?: AbortSignal) =>
   request(`/api/overview?persona=${encodeURIComponent(persona)}`, { signal }).then(
     (r) => r.json() as Promise<OverviewResponse>,
   );
+
+const q = encodeURIComponent;
+export const getHistory = (persona: string, limit = 20) =>
+  getJSON<HistoryItem[]>(`/api/history?persona=${q(persona)}&limit=${limit}`);
+
+/** A saved run as /api/ask's result; null when it is missing or another persona's (the API's bare 404). */
+export async function getRun(runId: string, persona: string): Promise<AskResult | null> {
+  try {
+    return await getJSON<AskResult>(`/api/runs/${q(runId)}?persona=${q(persona)}`);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("HTTP 404")) return null;
+    throw e;
+  }
+}
+
+/** Thumbs up (1) or down (-1); the latest rating wins. */
+export async function sendFeedback(runId: string, persona: string, rating: 1 | -1): Promise<S["FeedbackSaved"]> {
+  const res = await request(`/api/runs/${q(runId)}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ persona, rating }),
+  });
+  return res.json();
+}
 
 export async function explorePlan(form: ExploreForm): Promise<ExplorePlan> {
   const res = await request("/api/explore/plan", {

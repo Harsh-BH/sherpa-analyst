@@ -126,6 +126,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * History
+         * @description The persona's own app runs that can be reopened, newest first.
+         */
+        get: operations["history_api_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Run
+         * @description A saved run as the same AskResult /api/ask streams, its view rebuilt from the stored bundle.
+         */
+        get: operations["get_run_api_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Feedback
+         * @description Thumbs up (1) or down (-1). Insert-only: the latest rating wins when read.
+         */
+        post: operations["run_feedback_api_runs__run_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -690,6 +750,26 @@ export interface components {
             question: string;
             plan: components["schemas"]["AnalysisPlan"];
         };
+        /** FeedbackRequest */
+        FeedbackRequest: {
+            /** Persona */
+            persona: string;
+            /**
+             * Rating
+             * @enum {integer}
+             */
+            rating: -1 | 1;
+        };
+        /** FeedbackSaved */
+        FeedbackSaved: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Feedback
+             * @enum {string}
+             */
+            feedback: "up" | "down";
+        };
         /** Filter */
         Filter: {
             /** Dimension */
@@ -725,6 +805,22 @@ export interface components {
             fixture_mode: boolean;
             /** Fixture Reason */
             fixture_reason: string | null;
+        };
+        /**
+         * HistoryItem
+         * @description A run the persona can reopen with GET /api/runs/{run_id}.
+         */
+        HistoryItem: {
+            /** Run Id */
+            run_id: string;
+            /** Question */
+            question: string;
+            /** Status */
+            status: string;
+            /** Confidence */
+            confidence: string | null;
+            /** Asked At */
+            asked_at: string;
         };
         /** KV */
         KV: {
@@ -921,6 +1017,8 @@ export interface components {
             cost: string;
             /** Footprint */
             footprint: components["schemas"]["KV"][];
+            /** Feedback */
+            feedback?: ("up" | "down") | null;
         };
         /** RunsOk */
         RunsOk: {
@@ -1228,6 +1326,118 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    history_api_history_get: {
+        parameters: {
+            query: {
+                persona: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryItem"][];
+                };
+            };
+            /** @description Unknown persona */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_run_api_runs__run_id__get: {
+        parameters: {
+            query: {
+                persona: string;
+            };
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskResult"];
+                };
+            };
+            /** @description No such run for this persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_feedback_api_runs__run_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackSaved"];
+                };
+            };
+            /** @description No such run for this persona */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

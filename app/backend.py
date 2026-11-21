@@ -27,6 +27,7 @@ FIXTURE_KEYWORDS = {
     "sql_route": "merchant merchants most failed top highest",
     "reconcile": "settled settlement settlements match gmv reconcile payout payouts",
 }
+HISTORY_FIXTURES = ("explain_change", "reconcile", "sql_route", "clarify", "refused", "error")
 REGIONS = {"north", "south", "east", "west"}
 # Demo chips: the planted scenarios' own questions (data/ground_truth_<seed>.json), placeholders until seeded.
 DEMO_SCENARIOS = ("S1", "S2", "S3", "S4", "S5b", "S6")
@@ -76,6 +77,11 @@ def answer(question: str, persona: str, plan: AnalysisPlan | None = None,
 
 def load_fixture(name: str) -> AnswerBundle:
     return AnswerBundle.model_validate_json((FIXTURES / f"{name}.json").read_text())
+
+
+def fixture_runs(persona: str) -> list[AnswerBundle]:
+    """Fixture mode's run log (history, permalinks, feedback): the saved bundles of this persona, in a fixed order."""
+    return [b for b in map(load_fixture, HISTORY_FIXTURES) if b.persona == persona]
 
 
 def fixture_name(question: str, persona: str, plan: AnalysisPlan | None = None) -> str:

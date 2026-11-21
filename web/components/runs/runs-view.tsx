@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { History } from "lucide-react";
+import { History, ThumbsDown, ThumbsUp } from "lucide-react";
 
 import { Banner } from "@/components/answer/answer-view";
 import { KVList } from "@/components/answer/data-table";
@@ -20,6 +20,22 @@ const StatusBadge = ({ status }: { status: string }) => (
     {status}
   </Badge>
 );
+
+// The run's latest thumb (icon and its name for screen readers), or a dash when unrated.
+const FEEDBACK = {
+  up: { icon: ThumbsUp, label: "Helpful", cls: "text-positive" },
+  down: { icon: ThumbsDown, label: "Not helpful", cls: "text-negative" },
+};
+function Feedback({ value }: { value?: "up" | "down" | null }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const { icon: Icon, label, cls } = FEEDBACK[value];
+  return (
+    <span className={cls}>
+      <Icon aria-hidden className="size-3.5" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 export function RunsView() {
   const [data, setData] = useState<RunsResponse | null>(null);
@@ -83,7 +99,7 @@ export function RunsView() {
                 <Table data-testid="runs-table" className="text-[12.5px]" containerClassName="max-h-[70vh] overflow-auto">
                   <TableHeader className="sticky top-0 z-[1] bg-card/80 backdrop-blur-md">
                     <TableRow>
-                      {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost"].map((h) => (
+                      {["Asked", "Persona", "Question", "Status", "Route", "Confidence", "Total", "Cost", "Feedback"].map((h) => (
                         <TableHead key={h} className="h-8 text-muted-foreground">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -106,6 +122,7 @@ export function RunsView() {
                         <TableCell>{r.confidence}</TableCell>
                         <TableCell>{r.total}</TableCell>
                         <TableCell>{r.cost}</TableCell>
+                        <TableCell data-testid="run-feedback"><Feedback value={r.feedback} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
