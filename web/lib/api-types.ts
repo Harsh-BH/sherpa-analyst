@@ -1129,6 +1129,11 @@ export interface components {
         };
         /** View */
         View: {
+            /**
+             * Partial
+             * @default false
+             */
+            partial: boolean;
             /** Claims */
             claims: components["schemas"]["ClaimView"][];
             /** Evidence */
@@ -1206,7 +1211,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description SSE: `stage` events {name, t_ms, elapsed} as stages start, then one `result` event whose data is AskResult. */
+            /** @description SSE: `stage` events {name, t_ms, elapsed} as stages start; at most one `partial` event (an AskResult with view.partial=true: the numbers, no headline, claims or confidence, and bundle.status not final) after the dq stage; then one `result` event whose data is AskResult. */
             200: {
                 headers: {
                     [name: string]: unknown;

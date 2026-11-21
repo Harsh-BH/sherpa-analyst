@@ -285,8 +285,12 @@ def _run(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None, q: que
     def on_stage(name: str) -> None:
         t_ms = round((time.perf_counter() - t0) * 1000)
         q.put(("stage", {"name": name, "t_ms": t_ms, "elapsed": fmt_ms(t_ms)}))
+
+    def on_partial(b: AnswerBundle) -> None:
+        q.put(("partial", b))
     try:
-        bundle = backend.load_fixture(fixture) if fixture else backend.answer(req.question, req.persona, plan, on_stage)
+        bundle = (backend.load_fixture(fixture, on_partial) if fixture
+                  else backend.answer(req.question, req.persona, plan, on_stage, on_partial))
     except Exception as e:  # noqa: BLE001 - keep a run id, as backend.answer does
         bundle = AnswerBundle(run_id=f"ui-{uuid.uuid4().hex[:12]}", question=req.question, persona=req.persona,
                               status="error", plan=plan, error=f"{type(e).__name__}: {e}")
@@ -305,13 +309,21 @@ def _stream(req: AskRequest, plan: AnalysisPlan | None, fixture: str | None) -> 
         if kind == "stage":
             yield _sse("stage", json.dumps(payload))
             continue
+        if kind == "partial":
+            try:   # the numbers before the narrative; optional, so one that cannot be viewed is dropped, never fatal
+                yield _sse("partial", AskResult(bundle=payload, view=build_view(payload, partial=True)).model_dump_json())
+            except Exception:  # noqa: BLE001
+                pass
+            continue
         yield _sse("result", AskResult(bundle=payload, view=build_view(payload)).model_dump_json())
         return
 
 
 @app.post("/api/ask", response_class=StreamingResponse, responses={200: {
     "model": AskResult, "content": {"text/event-stream": {}},
-    "description": "SSE: `stage` events {name, t_ms, elapsed} as stages start, then one `result` event whose data is AskResult."}})
+    "description": "SSE: `stage` events {name, t_ms, elapsed} as stages start; at most one `partial` event (an AskResult "
+                   "with view.partial=true: the numbers, no headline, claims or confidence, and bundle.status not final) "
+                   "after the dq stage; then one `result` event whose data is AskResult."}})
 def ask(req: AskRequest) -> StreamingResponse:
     plan = req.plan
     if req.patch is not None:

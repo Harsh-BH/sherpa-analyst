@@ -43,7 +43,9 @@ on `127.0.0.1:8000`:
 
 - **Ask streams.** `POST /api/ask` runs `pipeline.answer()` in a worker thread and sends one SSE `stage` event per
   `on_stage` call, then a `result` event with the `AnswerBundle` and its view. The proxy runs uncompressed so stages
-  arrive as they happen, and the trace shows each one with its elapsed time.
+  arrive as they happen, and the trace shows each one with its elapsed time. Between the dq and narrate stages one
+  `partial` event (from `on_partial`, with `view.partial` true) carries the numbers without the narrative, so the chart,
+  data-quality banners and segment tables show while the summary is still being written.
 - **Numbers are formatted once, in Python.** `app/view.py` turns the bundle into display strings with `format_value`;
   the front end never computes or formats a number, so the screen cannot disagree with the bundle.
 - **Data stays inert.** Data-derived text renders only as React text nodes, with no raw HTML and no URLs built from data.

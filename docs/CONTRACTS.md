@@ -179,7 +179,10 @@ def recon_bridge(recon: ReconResult) -> dict
 ```python
 # sherpa/pipeline.py
 def answer(question: str, persona: str, *, plan: AnalysisPlan | None = None,
-           on_stage: Callable[[str], None] | None = None) -> AnswerBundle   # on_stage(name): plan, triage, analysis, dq, narrate, check
+           on_stage: Callable[[str], None] | None = None,    # on_stage(name): plan, triage, analysis, dq, narrate, check
+           on_partial: Callable[[AnswerBundle], None] | None = None) -> AnswerBundle
+#   on_partial(copy): once, after analysis and dq, before narrate; a deep copy with evidence, drivers/recon, dq, plan
+#   and route but no headline, claims or confidence. A raising callback (like on_stage) never breaks the run.
 #   plan given (Explore mode or a clarification choice): skip the planner.
 #   Never raises; failures become status="error" with a message. Always save_run().
 ```

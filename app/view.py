@@ -89,6 +89,7 @@ class Footprint(BaseModel):
 
 
 class View(BaseModel):
+    partial: bool = False   # the numbers before the narrative: no headline, claims or confidence yet (SSE `partial`)
     claims: list[ClaimView]
     evidence: list[EvidenceView]
     key_charts: list[KeyChart]
@@ -233,7 +234,7 @@ def _footprint(b: AnswerBundle) -> Footprint:
     return Footprint(items=[KV(label=k, value=v) for k, v in pairs if v], stages=stages, summary=summary)
 
 
-def build_view(b: AnswerBundle) -> View:
+def build_view(b: AnswerBundle, *, partial: bool = False) -> View:
     ids = {e.id for e in b.evidence}
     claims, cited = [], {e.id: [] for e in b.evidence}
     for n, c in enumerate(b.claims, 1):
@@ -262,7 +263,7 @@ def build_view(b: AnswerBundle) -> View:
                           components=Table(columns=["component", "amount", "note"],
                                            rows=[[c.name.replace("_", " "), format_value(c.amount_inr, "inr"), c.note]
                                                  for c in b.recon.components]))
-    return View(claims=claims, evidence=evidence, key_charts=key_charts,
+    return View(partial=partial, claims=claims, evidence=evidence, key_charts=key_charts,
                 default_dimension=b.drivers.top_dimension if b.drivers and b.drivers.top_dimension in
                 {k.dimension for k in key_charts} else None,
                 fallback_chart=fallback, drivers=_driver_section(b) if b.drivers else None, recon=recon,

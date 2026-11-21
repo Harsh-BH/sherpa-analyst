@@ -11,6 +11,8 @@ export type Run = {
   /** `at`: ms after the ask when the stage reached the browser (the trace's data-stage-times). */
   stages: (api.Stage & { at: number })[];
   resultAt?: number;
+  /** The numbers before the narrative (`view.partial`): drawn while running, until the result replaces it. */
+  partial?: api.AskResult;
   result?: api.AskResult;
   error?: string;
 };
@@ -134,6 +136,7 @@ export function SherpaProvider({ children }: { children: ReactNode }) {
           { question, persona: p, ...rest },
           {
             stage: (e) => live() && setRun((r) => ({ ...r, stages: [...r.stages, { ...e, at: since() }] })),
+            partial: (partial) => live() && setRun((r) => ({ ...r, partial })),
             result: (result) => live() && setRun((r) => ({ ...r, status: "done", result, resultAt: since() })),
           },
           c.signal,

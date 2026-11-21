@@ -107,16 +107,18 @@ export function AnswerRail({ bundle, view }: { bundle: AnswerBundle; view: View 
             <KVList items={view.footprint.stages.map((s) => ({ ...s, label: stageLabel(s.label) }))} />
           </section>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          data-testid="download-bundle-rail"
-          className="justify-self-start"
-          onClick={() => download(bundle)}
-        >
-          <Download />
-          Download run bundle
-        </Button>
+        {!view.partial && ( // a partial bundle is not the run's record yet
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="download-bundle-rail"
+            className="justify-self-start"
+            onClick={() => download(bundle)}
+          >
+            <Download />
+            Download run bundle
+          </Button>
+        )}
       </TabsContent>
     </Tabs>
   );

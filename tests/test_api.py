@@ -33,7 +33,7 @@ def ask(**body):
 def fake_pipeline(stages=()):
     class Fake:
         @staticmethod
-        def answer(q, p, plan=None, on_stage=None):
+        def answer(q, p, plan=None, on_stage=None, on_partial=None):
             for s in stages:
                 on_stage(s)
             return backend.load_fixture("explain_change")
@@ -54,8 +54,8 @@ def test_meta_shape():
 
 def test_ask_streams_result_in_fixture_mode():
     events = sse(ask())
-    assert [n for n, _ in events] == ["result"]
-    d = events[0][1]
+    assert [n for n, _ in events] == ["partial", "result"]   # fixture mode sends the numbers first, as the pipeline does
+    d = events[-1][1]
     assert d["bundle"]["status"] == "answered" and d["view"]["claims"]
 
 
@@ -100,7 +100,7 @@ def test_ask_fixture_param_only_in_fixture_mode(monkeypatch):
 def test_ask_patch_applies():
     c = backend.load_fixture("clarify")
     r = ask(question=c.question, plan=c.plan.model_dump(mode="json"), patch=c.clarification.options[0].plan_patch)
-    assert sse(r)[0][1]["bundle"]["status"] != "clarify"
+    assert sse(r)[-1][1]["bundle"]["status"] != "clarify"
 
 
 def test_ask_unexpected_error_keeps_a_run_id(monkeypatch):
@@ -116,7 +116,7 @@ def test_ask_keeps_a_slow_stage_alive(monkeypatch):
     from app import api
     monkeypatch.setattr(api, "KEEPALIVE_S", 0.05)
 
-    def slow(q, p, plan=None, on_stage=None):
+    def slow(q, p, plan=None, on_stage=None, on_partial=None):
         time.sleep(0.3)
         return backend.load_fixture("explain_change")
     monkeypatch.setattr(backend, "answer", slow)
@@ -174,7 +174,7 @@ def test_runs_ok(monkeypatch):
 
 
 def test_partial_fixture_view():
-    b = sse(ask(fixture="partial"))[0][1]
+    b = sse(ask(fixture="partial"))[-1][1]
 
     def no_float(x):   # chart specs ("chart", "spec") are plot data for vega, a fraction is a bar width: not text
         if isinstance(x, dict):

@@ -9,6 +9,7 @@ import { KeyChart } from "@/components/answer/key-chart";
 import { Recon } from "@/components/answer/recon";
 import { RunActions } from "@/components/answer/run-actions";
 import { Clarification, ErrorCard, RefusalCard } from "@/components/answer/states";
+import { ClaimsSkeleton, HeadlineSkeleton } from "@/components/answer/summary-skeleton";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { AnswerBundle, View } from "@/lib/api";
@@ -48,7 +49,9 @@ export function download(bundle: AnswerBundle) {
   setTimeout(() => URL.revokeObjectURL(url));
 }
 
-/** An answered bundle, in the spec's order: data quality first, never folded away. */
+/** An answered bundle, in the spec's order: data quality first, never folded away. A partial view (the numbers before
+ * the narrative) draws the same tree with skeletons for the headline and claims, so the result swaps in without the
+ * page jumping or the charts redrawing: only the headline and claims animate in. */
 export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View }) {
   const conf = bundle.confidence ? CONFIDENCE[bundle.confidence] : null;
   const assumptions = bundle.plan?.assumptions ?? [];
@@ -60,12 +63,16 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
           <b className="font-semibold">Data quality · {w.check.replaceAll("_", " ")}:</b> {w.message}
         </Banner>
       ))}
-      <h2
-        data-testid="headline"
-        className="mt-1 text-[22px] leading-[1.3] font-semibold tracking-tight text-balance wrap-anywhere"
-      >
-        {bundle.headline || "No headline was produced."}
-      </h2>
+      {view.partial ? (
+        <HeadlineSkeleton />
+      ) : (
+        <h2
+          data-testid="headline"
+          className="mt-1 text-[22px] leading-[1.3] font-semibold tracking-tight text-balance wrap-anywhere"
+        >
+          {bundle.headline || "No headline was produced."}
+        </h2>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {conf && (
           <span data-testid="badge-confidence" className={cn(pill, conf.cls)}>
@@ -127,26 +134,29 @@ export function AnswerView({ bundle, view }: { bundle: AnswerBundle; view: View 
           </ul>
         </section>
       )}
-      <Claims claims={view.claims} />
+      {view.partial ? <ClaimsSkeleton /> : <Claims claims={view.claims} />}
       <KeyChart key={bundle.run_id} view={view} />
       {view.drivers && <Drivers drivers={view.drivers} />}
       {view.recon && <Recon recon={view.recon} />}
-      <Button
-        variant="outline"
-        size="sm"
-        data-testid="download-bundle"
-        className="justify-self-start"
-        onClick={() => download(bundle)}
-      >
-        <Download />
-        Download run bundle
-      </Button>
+      {!view.partial && (
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="download-bundle"
+          className="justify-self-start"
+          onClick={() => download(bundle)}
+        >
+          <Download />
+          Download run bundle
+        </Button>
+      )}
     </article>
   );
 }
 
 /** One bundle, by status: the answer, a clarification, a refusal or an error. */
 export function BundleView({ bundle, view }: { bundle: AnswerBundle; view: View }) {
+  if (view.partial) return <AnswerView bundle={bundle} view={view} />; // its bundle.status is not final yet
   switch (bundle.status) {
     case "error":
       return <ErrorCard bundle={bundle} />;
