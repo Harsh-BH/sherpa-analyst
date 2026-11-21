@@ -177,7 +177,8 @@ def recon_bridge(recon: ReconResult) -> dict:
 # without an offset ("2026-11-21T15:30:00"), which Vega reads as wall-clock time in any browser.
 # Time axes: a label whose tick sits within 40 px of an end aligns inward, so the last one never runs off the card
 # (Vega's default flushes only a tick exactly at the end; Vega's fit-x sizing can still leave a later tick's label over).
-TIME_AXIS = {"labelFlush": 40}
+# labelSeparation: overlap pruning keeps 8 px between labels, so a flushed last label never lands on its neighbour.
+TIME_AXIS = {"labelFlush": 40, "labelSeparation": 8}
 
 
 def _palette(field: str, colors: dict[str, str]) -> dict:
