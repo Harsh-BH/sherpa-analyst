@@ -13,6 +13,8 @@ from sherpa.config import load_access, load_catalog
 from sherpa.contracts import AnswerBundle, DimensionDecomposition, Evidence, SegmentEffect, format_value
 
 STAGES = ("plan", "triage", "analysis", "dq", "narrate", "check")
+STAGE_LABELS = {"plan": "Plan", "triage": "Triage", "analysis": "Analysis", "dq": "Data-quality checks",
+                "narrate": "Narration", "check": "Claim check"}   # as the web trace names them
 
 
 class KV(BaseModel):
@@ -45,6 +47,14 @@ class EvidenceView(BaseModel):
     table: Table | None
     chart: dict | None
     cited_by: list[int]
+
+
+class ChartView(BaseModel):
+    """A dashboard chart: `summary` is its text alternative (aria-label), `key` a stable id for the page."""
+    key: str
+    title: str
+    summary: str
+    spec: dict
 
 
 class KeyChart(BaseModel):

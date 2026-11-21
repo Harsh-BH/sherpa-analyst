@@ -17,6 +17,8 @@ WIDTH = 620                      # plot area; with axes and labels the chart is 
 OKABE_ITO = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#000000"]
 MIX, RATE, TOTAL = "#0072B2", "#E69F00", "#595959"
 DOWN, UP = "#D55E00", "#009E73"
+GREY = "#BBBBBB"
+STATUS = {"answered": UP, "clarify": RATE, "refused": TOTAL, "error": DOWN}   # run status -> colour
 
 
 def _axis_expr(fmt: ValueFormat) -> str | None:
@@ -162,9 +164,85 @@ def recon_bridge(recon: ReconResult) -> dict:
             {"mark": {"type": "bar", "clip": True},
              "encoding": {"x": xenc, "y": {**y, "field": "start"}, "y2": {"field": "end"},
                           "color": _color("kind", ["Total", "Reduces payout", "Adds to payout", "No effect"],
-                                          [TOTAL, DOWN, UP, "#BBBBBB"]),
+                                          [TOTAL, DOWN, UP, GREY]),
                           "tooltip": [{"field": "step", "title": "Step"}, {"field": "_label", "title": "Amount"}]}},
             {"mark": {"type": "text", "baseline": "bottom", "dy": -3, "fontSize": 11},
              "encoding": {"x": xenc, "y": {**y, "field": "top"}, "text": {"field": "_label"}}},
         ],
     }
+
+
+# ---------------------------------------------------------------- dashboard charts (Home, Eval, Runs)
+# Rows arrive with their display text already in `_label` (formatted in Python); times are local ISO strings
+# without an offset ("2026-11-21T15:30:00"), which Vega reads as wall-clock time in any browser.
+def _palette(field: str, colors: dict[str, str]) -> dict:
+    enc = _color(field, list(colors), list(colors.values()))
+    return {**enc, "legend": None} if len(colors) == 1 else enc
+
+
+def sparkline(rows: list[dict], x: str, y: str, color: str = MIX) -> dict:
+    """A 40 px line with no axes or title, for a KPI card (the card carries the label and value)."""
+    return {"$schema": SCHEMA, "width": WIDTH, "height": 40, "padding": 2, "data": {"values": rows},
+            "mark": {"type": "line", "color": color, "strokeWidth": 1.5, "interpolate": "monotone"},
+            "encoding": {"x": {"field": x, "type": "temporal", "axis": None},
+                         "y": {"field": y, "type": "quantitative", "axis": None, "scale": {"zero": False}}}}
+
+
+def lines(rows: list[dict], x: str, y: str, title: str | dict, y_axis: dict, colors: dict[str, str],
+          series: str = "series", zero: bool = False, tooltip: list[dict] | None = None, x_format: str = "%d %b") -> dict:
+    """Lines over time, one per `series` value (colours from `colors`, the first solid and the rest dashed)."""
+    color = _palette(series, colors)
+    enc = {"x": {"field": x, "type": "temporal", "title": None, "axis": {"format": x_format}},
+           "y": {"field": y, "type": "quantitative", "scale": {"zero": zero}, "axis": y_axis},
+           "color": color,   # one legend: Vega-Lite merges the two channels on the same field
+           "strokeDash": {"field": series, "type": "nominal", "scale": {"domain": list(colors)}, "legend": color["legend"]},
+           "tooltip": tooltip or [{"field": x, "type": "temporal", "title": "Time", "format": "%d %b %H:%M"},
+                                  {"field": "_label", "title": y_axis.get("title") or _title(y)}]}
+    return {**_base(title, rows), "height": 200, "mark": {"type": "line", "point": {"size": 18}}, "encoding": enc}
+
+
+def hbars(rows: list[dict], y: str, x: str, title: str | dict, x_axis: dict, colors: dict[str, str],
+          group: str | None = None, x_max: float | None = None) -> dict:
+    """Horizontal bars, each labelled with its `_label`. With `group` the bars of one `y` sit side by side,
+    coloured by group value; without it, every bar takes the one colour in `colors`."""
+    top = max([x_max or 0.0, *(r[x] for r in rows)]) or 1.0
+    yenc = {"field": y, "type": "nominal", "sort": None, "title": None}
+    enc: dict[str, Any] = {
+        "y": yenc,
+        "x": {"field": x, "type": "quantitative", "axis": x_axis, "scale": {"domain": [0, top * 1.2], "nice": False}},
+        "tooltip": [{"field": y, "title": _title(y)}, *([{"field": group, "title": _title(group)}] if group else []),
+                    {"field": "_label", "title": x_axis.get("title") or _title(x)}]}
+    bar: dict[str, Any] = {"mark": {"type": "bar", "cornerRadiusEnd": 3}}
+    if group:
+        enc["yOffset"] = {"field": group, "type": "nominal", "scale": {"domain": list(colors)}}
+        bar["encoding"] = {"color": _palette(group, colors)}   # bars only: the labels keep the text colour
+    else:
+        bar["mark"]["color"] = next(iter(colors.values()))
+    return {**_base(title, rows), "height": {"step": 34 if group else 24}, "encoding": enc,
+            "layer": [bar,
+                      {"mark": {"type": "text", "align": "left", "dx": 4, "fontSize": 11}, "encoding": {"text": {"field": "_label"}}}]}
+
+
+def status_bars(rows: list[dict], x: str, time_unit: str, title: str | dict) -> dict:
+    """Runs per time bucket (one row per run), stacked by status."""
+    xenc = {"field": x, "timeUnit": time_unit, "type": "temporal"}
+    fmt = "%d %b %H:00" if "hours" in time_unit else "%d %b"
+    return {**_base(title, rows), "height": 160, "mark": {"type": "bar", "cornerRadiusEnd": 2},
+            "encoding": {"x": {**xenc, "title": None, "axis": {"format": fmt}},
+                         "y": {"aggregate": "count", "type": "quantitative", "title": "Runs",
+                               "axis": {"format": "d", "tickMinStep": 1}},
+                         "color": _palette("status", STATUS),
+                         "tooltip": [{**xenc, "title": "From", "format": fmt}, {"field": "status", "title": "Status"},
+                                     {"aggregate": "count", "type": "quantitative", "title": "Runs"}]}}
+
+
+def status_points(rows: list[dict], x: str, y: str, title: str | dict, y_axis: dict, x_format: str = "%d %b") -> dict:
+    """One point per run over time, coloured and shaped by status."""
+    legend = {"title": None, "orient": "top"}
+    return {**_base(title, rows), "height": 180, "mark": {"type": "point", "filled": True, "size": 46, "opacity": 0.85},
+            "encoding": {"x": {"field": x, "type": "temporal", "title": None, "axis": {"format": x_format}},
+                         "y": {"field": y, "type": "quantitative", "axis": y_axis},
+                         "color": {**_palette("status", STATUS), "legend": legend},
+                         "shape": {"field": "status", "type": "nominal", "scale": {"domain": list(STATUS)}, "legend": legend},
+                         "tooltip": [{"field": x, "type": "temporal", "title": "Asked", "format": "%d %b %H:%M"},
+                                     {"field": "status", "title": "Status"}, {"field": "_label", "title": y_axis["title"]}]}}

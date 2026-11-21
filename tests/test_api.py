@@ -184,3 +184,78 @@ def test_partial_fixture_view():
         return not isinstance(x, float)
     assert b["view"]["claims"][0]["missing_ids"] == ["E9"]
     assert no_float(b["view"])
+
+
+def test_overview_serves_its_fixture_in_fixture_mode():
+    o = client.get("/api/overview?persona=head").json()
+    assert o["available"] is True and o["as_of"] and o["window"]
+    assert [k["key"] for k in o["kpis"]] == ["success_rate", "gmv", "attempts", "technical_decline_rate"]
+    for k in o["kpis"]:
+        assert k["value"] and k["delta"] and k["summary"] and k["direction"] in ("up", "down", "flat")
+        assert k["tone"] in ("positive", "negative", "neutral") and k["spark"]["height"] == 40
+        assert len(k["spark"]["data"]["values"]) == 30
+    assert o["trend"]["key"] == "overview-trend" and o["trend"]["summary"] and o["trend"]["spec"]["mark"]["type"] == "line"
+    assert client.get("/api/overview?persona=nobody").status_code == 422
+
+
+def test_overview_unavailable_on_failure(monkeypatch):
+    from app import overview
+    monkeypatch.setattr(backend, "pipeline_status", lambda: (object(), None))
+
+    def boom(persona):
+        raise RuntimeError("no db\nsecond line")
+    monkeypatch.setattr(overview, "build", boom)
+    assert client.get("/api/overview").json() == {"available": False, "reason": "RuntimeError: no db"}
+
+
+def test_eval_charts(monkeypatch):
+    monkeypatch.setattr(backend, "EVAL_RESULTS", backend.FIXTURES / "eval_latest.json")
+    charts = {c["key"]: c for c in client.get("/api/eval").json()["charts"]}
+    assert list(charts) == ["eval-vs-baseline", "eval-by-kind"]
+    vs = charts["eval-vs-baseline"]["spec"]["data"]["values"]
+    assert {"metric": "Result equivalence", "system": "Sherpa", "rate": 0.95, "_label": "95%"} in vs
+    assert {"metric": "Correct clarifications", "system": "Baseline", "rate": 0.0, "_label": "0%"} in vs
+    assert len(vs) == 8 and "Result equivalence 95% vs 60%" in charts["eval-vs-baseline"]["summary"]
+    kinds = {(r["kind"], r["system"]): r["_label"] for r in charts["eval-by-kind"]["spec"]["data"]["values"]}
+    assert kinds[("Refusal (n=1)", "Sherpa")] == "100%" and kinds[("Refusal (n=1)", "Baseline")] == "0%"
+
+
+def _series():
+    from datetime import datetime, timedelta, timezone
+    t0 = datetime(2026, 11, 21, 10, 0, tzinfo=timezone.utc)   # 15:30 IST
+    return [{"run_id": f"r{i}", "asked_at": t0 + timedelta(minutes=40 * i), "status": s, "cost_usd": c,
+             "timings_ms": {"plan": 1000 * (i + 1), "narrate": 3000, "total": 5000 + 1000 * i}}
+            for i, (s, c) in enumerate([("answered", 0.01), ("clarify", None), ("error", 0.02)])]
+
+
+def test_runs_charts(monkeypatch):
+    import sherpa.runs
+    monkeypatch.setattr(sherpa.runs, "run_stats", lambda: {"runs": 3})
+    monkeypatch.setattr(sherpa.runs, "recent_runs", lambda n: [])
+    monkeypatch.setattr(sherpa.runs, "run_series", lambda: _series())
+    charts = {c["key"]: c for c in client.get("/api/runs").json()["charts"]}
+    assert list(charts) == ["runs-over-time", "stage-time", "latency", "llm-spend"]
+    assert all(c["title"] and c["summary"] for c in charts.values())
+    over = charts["runs-over-time"]["spec"]
+    assert over["encoding"]["x"]["timeUnit"] == "yearmonthdatehours"           # span <= 2 days: hourly
+    assert over["data"]["values"][0]["t"] == "2026-11-21T15:30:00"             # IST wall clock
+    assert "3 runs: 1 answered, 1 clarify, 0 refused, 1 error" in charts["runs-over-time"]["summary"]
+    stage = {r["stage"]: r["_label"] for r in charts["stage-time"]["spec"]["data"]["values"]}
+    assert stage == {"Plan": "2.0 s", "Narration": "3.0 s"}                    # mean over runs, pipeline order
+    spend = charts["llm-spend"]["spec"]["data"]["values"]
+    assert [r["_label"] for r in spend] == ["$0.0100", "$0.0300"]              # cumulative, runs with a cost
+    assert [r["_label"] for r in charts["latency"]["spec"]["data"]["values"]] == ["5.0 s", "6.0 s", "7.0 s"]
+
+
+def test_runs_charts_daily_and_empty(monkeypatch):
+    import sherpa.runs
+    from datetime import timedelta
+    s = _series()
+    s[-1]["asked_at"] += timedelta(days=3)
+    monkeypatch.setattr(sherpa.runs, "run_stats", lambda: {"runs": 3})
+    monkeypatch.setattr(sherpa.runs, "recent_runs", lambda n: [])
+    monkeypatch.setattr(sherpa.runs, "run_series", lambda: s)
+    over = client.get("/api/runs").json()["charts"][0]["spec"]
+    assert over["encoding"]["x"]["timeUnit"] == "yearmonthdate"
+    monkeypatch.setattr(sherpa.runs, "run_series", lambda: [])
+    assert client.get("/api/runs").json()["charts"] == []
