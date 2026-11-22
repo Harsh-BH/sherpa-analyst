@@ -52,10 +52,36 @@ on `127.0.0.1:8000`:
   Data-quality banners sit above the headline and are never collapsed.
 - **Charts** are the `sherpa/charts.py` Vega-Lite specs drawn by vega-embed. Their colours are remapped per theme through
   `web/lib/chart-colors.json`, and a test fails if `charts.py` emits a colour the map does not cover.
-- **Layout:** a sidebar (persona, pages, data version, LLM backend), the answer in the centre, and an inspector rail
+- **Layout:** a sidebar (persona, pages, recent runs, data version, LLM backend), the answer in the centre, and an inspector rail
   (Plan · Evidence · Footprints). Selecting an evidence chip opens its rail entry and highlights every claim that cites it.
 - **Fixture mode:** `SHERPA_UI_FIXTURES=1` makes the API answer from `tests/fixtures/`; the Playwright suite in
   `web/e2e/` runs against it.
+- **Home** (`app/overview.py`): four KPIs and the daily success-rate trend for the last 30 days against the 30 before, plus
+  the data-quality checks over the same 30 days. Both compile governed queries with `compile_metric` / `compile_dq_queries`
+  and run them through `run_query` as the persona (guard, RLS, cost gate), with no LLM and no `app.runs` write, cached per
+  (persona, data version). Each trend day carries the question that explains it, so a click is an ordinary Ask.
+- **History:** `app.runs.bundle` keeps the whole `AnswerBundle`, so a run reopens from `/?run=<id>` with its view rebuilt
+  by `build_view` and no pipeline call. `app.run_feedback` holds thumbs up and down, insert-only, and the latest rating wins.
+  Every run endpoint is scoped to the asking persona, and anything else is a bare 404.
+- **Run source:** `save_run` stamps `app.runs.source` from `SHERPA_RUN_SOURCE` (`app`, `test` or `eval`). The Runs page,
+  Recent and the helpful rate read `app` rows only.
+- **Answer extras** come from `app/view.py`, so they are Python's decisions too: up to four follow-ups with their plans,
+  drill questions on the waterfall's segment bars, headline chips with the metric's tone, key columns for wide tables, and
+  the answer as Markdown for Copy answer.
+- **Shell:** a command palette (⌘K / Ctrl K) over pages, recent runs, sample questions, personas and shortcuts. Below 768 px
+  the sidebar is a sheet and the rail a bottom sheet.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health`, `GET /api/meta` | liveness and fixture mode; personas, catalog, windows, data version, LLM backend |
+| `POST /api/ask` | SSE: `stage` events, one `partial`, then `result` (bundle plus view) |
+| `POST /api/explore/plan` | Explore's pickers to an `AnalysisPlan` (no LLM) |
+| `GET /api/overview`, `GET /api/data-health` | home KPIs and trend; the 30-day DQ checks (both per persona) |
+| `GET /api/eval` | `eval/results/latest.json` with charts |
+| `GET /api/runs` | app runs: tiles, charts, recent rows with feedback |
+| `GET /api/history` | the persona's reopenable runs, newest first (20, max 50) |
+| `GET /api/runs/{id}` | one saved run, as the same result `/api/ask` streams |
+| `POST /api/runs/{id}/feedback` | thumbs up (1) or down (−1) |
 
 ## Safety in two layers
 
