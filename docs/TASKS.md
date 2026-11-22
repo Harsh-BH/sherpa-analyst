@@ -89,12 +89,44 @@ plan: `docs/superpowers/plans/2026-11-21-nextjs-inspector-ui.md`.
 | W6 | clarification, refusal and error states; Explore | ui | W5 | P1 | M | Completed |
 | W7 | Eval and Runs pages | ui | W4 | P2 | S | Completed |
 | W8 | Streamlit removed; Docker files written (not built: disk); docs; live check | ui | W6,W7 | P1 | S | Completed |
-| W9 | merge to `main` with `--no-ff`, push | master | W8 | P0 | S | Pending |
+| W9 | merge to `main` with `--no-ff`, push | master | W8 | P0 | S | Completed (`148b4ad`) |
 
-## Final state
+## UI polish (branch `feature/ui-polish`, merged as `2738e69`)
 
-- 391 tests pass (3 live-LLM tests deselected by default). Fresh two-seed eval on `2f13f1c`: Sherpa 56/56, naive baseline 17/56, unsupported numbers 0 vs 72.
-- Docker app image built and verified (health + pipeline inside the container), then removed to free disk.
+| ID | Task | Commits | Status |
+|---|---|---|---|
+| P1 | label every run by source (`app.runs.source` from `SHERPA_RUN_SOURCE`); Runs shows app runs only | `99a8cac` | Completed |
+| P2 | stage timing fractions, and a step count that matches the trace | `a310a98` | Completed |
+| P3 | `GET /api/overview` (30 days vs the 30 before, governed path) and Eval/Runs chart specs | `9be2cdf` | Completed |
+| P4 | accent theme with AA contrast in light and dark; CSS-only motion, off under reduced motion | `49cb881` | Completed |
+| P5 | home KPI cards and trend, Eval and Runs charts, status badges, trace timing bars | `fc3ad22` | Completed |
+| P6 | review fixes: chart ticks and labels, AA badges on selected rows, sticky headers, steady skeleton | `e6cc3c7` `69159c0` `3ff6f0b` `5b1fb64` | Completed |
+
+## UX pack (branch `feature/ux-pack`, merged as `adaada0`)
+
+Five agents, one worktree each, built twelve features in parallel; an integrator merged them, and review agents checked the result.
+
+| ID | Track | Feature | Commits | Status |
+|---|---|---|---|---|
+| X1 | ux-history | run history, `/?run=` permalinks, thumbs feedback (`app.runs.bundle`, insert-only `app.run_feedback`), sidebar Recent | `4531da4` `c012e08` | Completed |
+| X2 | ux-stream | SSE `partial` event: chart, DQ banners and tables before the narrative | `d28d566` `23bb129` | Completed |
+| X3 | ux-home | explain a dip (click a trend day), unusual days, data-health rail, eval proof line | `abba9b1` `3c24450` | Completed |
+| X4 | ux-answer | Ask next follow-ups, waterfall drill-down, copy answer (Markdown), chart PNGs, headline chips, key columns | `1f675f1` `ad49f51` | Completed |
+| X5 | ux-shell | command palette (⌘K / Ctrl K, `/`), phone layout with a bottom-sheet rail, 40 px tap targets | `26993c6` | Completed |
+| X6 | integrator | merge the five tracks; the palette's Recent group reads run history | `434b40d`…`bfee191` `bd6757f` | Completed |
+| X7 | review fixes | bare 404s on run endpoints, follow-up wording, partial-to-result swap, PNG for every chart, phone tap targets, More columns label from Python, time-axis label spacing | `af1feee`…`7ffc8d4` | Completed |
+| X8 | master | one date label a week on the home trend, so labels never overlap on a narrow card | `650000b` | Completed |
+| X9 | master | merge to `main` with `--no-ff`, push | `adaada0` | Completed |
+| X10 | master | README and docs refresh (features, screenshots, test counts, demo script) | branch `docs/submission-refresh` | Completed |
+
+## Final state (22 Nov 2026)
+
+- **Tests:** 455 Python tests pass (3 live-LLM tests deselected by default) and 85 browser tests pass.
+- **Eval:** a fresh two-seed run on 21 Nov (committed in `8ce761b`) gave Sherpa 56/56 and the naive baseline 17/56, with
+  unsupported numbers 0 vs 72. Later rounds changed the UI, the API, run storage and chart styling, not the analysis path.
+- **Docker:** the Python image was built and verified with the Streamlit UI (health plus a pipeline answer inside the
+  container), then removed to free disk. The `api` and Next.js `web` images are written but not built.
+- **Before submitting:** the GitHub repo is private and must be made public; the demo video follows `docs/DEMO.md`.
 
 ## Adversarial review (I5): 24 findings, all reproduced by an independent skeptic, all fixed with regression tests
 

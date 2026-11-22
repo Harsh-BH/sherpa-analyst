@@ -12,6 +12,15 @@ recommendation / caveat**, and a checker rejects any number the model typed inst
 
 **The LLM translates and narrates; deterministic code computes.** The model never invents a number and never sees row-level data.
 
+![Sherpa answering "Why did success rate drop last week?" on the seeded data: two data-quality banners, the headline 92.5% to 91.7%, tagged claims with their evidence chips, and the inspector rail listing the nine queries behind the answer](docs/img/ui-light.png)
+
+<sub>A real run (claude-cli backend, 16.9 s, $0.19), reopened from its permalink. Dark theme: [`docs/img/ui-dark.png`](docs/img/ui-dark.png).</sub>
+
+**Contents:** [Why this design](#why-this-design) · [Quickstart](#quickstart) · [What to try](#what-to-try) ·
+[Using the app](#using-the-app) · [How it works](#how-it-works) · [Failure scenarios](#the-briefs-failure-scenarios) ·
+[Evaluation](#evaluation) · [Tests](#tests) · [Security](#security-model) · [Limitations](#assumptions-mocks-limitations) ·
+[Layout](#repository-layout) · [How it was built](#how-it-was-built)
+
 ---
 
 ## Why this design
@@ -59,7 +68,7 @@ docker compose up -d db && docker compose run --rm seed && docker compose up api
 The `api` and `web` images were not built on the build machine because the disk was nearly full. Both Dockerfiles are
 written and the compose file passes `docker compose config`, but this path is untested; the local `make app` path is the tested one.
 
-## What to try (the 3-minute demo)
+## What to try
 
 | Persona | Question | What you should see |
 |---|---|---|
@@ -72,6 +81,64 @@ written and the compose file passes `docker compose config`, but this path is un
 | Regional manager, South | *Which merchants in the South had the highest GMV in the last 7 days?* | The answer is clean, although one merchant's name contains a prompt-injection payload. The model never sees display names. |
 
 **Explore** mode builds the same plan with pickers and no LLM. **Eval** shows the scorecard. **Runs** shows latency, cost and the cache-hit rate from the run log.
+
+The full demo script, with timings and what to say, is in [`docs/DEMO.md`](docs/DEMO.md).
+
+## Using the app
+
+The screen has three columns: the sidebar (persona, pages, recent runs, data version, LLM backend), the answer, and an
+inspector rail. Every number on screen is a string formatted once in Python (`app/view.py`), so the UI cannot disagree with
+the bundle it shows.
+
+**Home, before you ask anything**
+
+![The home page: four KPI cards with sparklines, the daily success-rate chart with unusual days marked, and the data-health rail](docs/img/home.png)
+
+- **Last 30 days vs the 30 before.** Four KPI cards (success rate, GMV, attempts, technical decline rate), each with a change
+  arrow and a sparkline, above the daily success-rate chart. They run through the same governed path as an answer: compiled
+  SQL, the persona's own DB role, RLS, the cost gate, and no LLM.
+- **Explain a dip.** Click any day on the chart and Sherpa asks why success rate moved that day compared with the day before.
+  Days more than 2 standard deviations from the 30-day mean are drawn larger and also listed as buttons, so the keyboard can
+  reach them.
+- **Data health.** The rail lists the data-quality checks over the last 30 days (duplicates, ingestion gaps, nulls, freshness).
+  Clicking an issue asks whether that day's data is complete. Below it are the three steps of how Sherpa answers and the eval
+  result, linked to the Eval page.
+
+**Asking a question**
+
+- **A live trace.** Each stage (plan, triage, analysis, dq, narrate, check) appears as it starts, with a timing bar. When the
+  run finishes, the trace folds into one line: steps, time and LLM cost.
+- **Numbers first.** As soon as the analysis is done, the chart, the data-quality banners and the segment tables appear, while
+  the model is still writing the summary. The API streams them as an SSE `partial` event before the `result`.
+- **Headline chips.** The numbers in the headline are chips, coloured by whether the move is good or bad for that metric.
+- **Tagged claims.** Every sentence is a fact, hypothesis, recommendation or caveat. Clicking an evidence chip (**E2**) opens
+  that query in the rail and highlights every claim that cites it.
+- **Ask next.** Up to four follow-up questions, each carrying its own plan. Clicking a bar on the waterfall asks why that
+  segment moved.
+
+![The waterfall for the same run: mix −0.92 pp and rate +0.08 pp add up to the −0.84 pp change, with the Simpson's paradox callout, the drill-down links and the Ask next chips below](docs/img/waterfall.png)
+
+- **Share and rate.** **Copy answer** copies the answer as Markdown. **Copy link** copies a permalink (`/?run=<id>`) that
+  reopens the run without re-running it. Thumbs up or down rate the answer. Every chart downloads as a PNG.
+- **Wide tables** show their key columns first; **More columns** shows the rest.
+
+**The inspector rail.** **Plan** shows the typed plan and the assumptions it made. **Evidence** shows each query's SQL, hash,
+window, filters, the values claims may cite, and the result table. **Footprints** shows time per stage, LLM cost and the run
+bundle download.
+
+**The other pages**
+
+- **Explore:** pick an intent, metric, window and baseline, with no LLM. It builds the same plan an Ask would.
+- **Eval:** the scorecard, with Sherpa-vs-baseline charts, the pass rate by question type, and every case's detail.
+- **Runs:** runs asked in the app (test and eval traffic is labelled and left out). It shows p50 and p95 latency, LLM cost,
+  refusal, clarify and cache-hit rates, the share rated helpful, four charts over time, and each run's feedback.
+
+**Getting around.** The sidebar's **Recent** list reopens your last eight runs. ⌘K (Ctrl K) opens a command palette over
+pages, your recent runs, sample questions, personas and the keyboard shortcuts, and `/` jumps to the question box. There are
+light and dark themes. The motion is CSS-only and turns off under `prefers-reduced-motion`. On a phone the sidebar becomes a
+menu, the rail becomes a bottom sheet, and tap targets are at least 40 px.
+
+<img src="docs/img/phone.png" alt="Sherpa on a phone: the compact top bar with menu, search and Inspector buttons above the same answer" width="300">
 
 ## How it works
 
@@ -149,8 +216,9 @@ On top of that:
 <!-- EVAL:START -->
 `make eval` runs **28 cases per seed on two seeds** (42 in `sherpa`, 7 in `sherpa_s7`). Planted-cause parameters differ per
 seed: a different bank, day and card network. Sherpa runs against a **naive baseline**: one LLM call writes SQL from the schema
-DDL, and a second summarises the rows. Both use the same models. Results from a fresh run on commit `2f13f1c`
-(`eval/results/latest.json`, also on the Eval page):
+DDL, and a second summarises the rows. Both use the same models. Results from a fresh run on 21 Nov 2026
+(`eval/results/latest.json`, committed in `8ce761b`, also on the Eval page). Later commits changed the UI, the API, run
+storage and chart styling; the planner, triage, compiler, guard, executor, drivers, DQ checks and narrator are unchanged since that run.
 
 | Metric (both seeds) | Sherpa | Naive baseline |
 |---|---|---|
@@ -174,6 +242,18 @@ external benchmark. Two seeds with randomised parameters and gold SQL written in
 they do not remove it. For the plain level question "What was our success rate in the last 7 days?", Sherpa asks which
 denominator is meant (the readings differ by about 6 pp), and the eval answers with the governed default. That is recorded in the case detail.
 <!-- EVAL:END -->
+
+## Tests
+
+| Suite | Command | Count | What it covers |
+|---|---|---|---|
+| Python | `make test` | **455 pass** (3 live-LLM tests deselected; run them with `uv run pytest -m live`) | guard attack corpus, compiler, executor limits, decomposition identity, DQ, reconciliation, planner/triage/narrator with a stub LLM, claim checker, RLS and grants, generator ground truth, the eval harness, the view model, the API, run history, the partial event, the home overview |
+| Browser | `make e2e` | **85 pass** | Playwright on system Chrome against fixture mode: asking, the partial answer, the rail, states, Explore, Eval and Runs dashboards, history and permalinks, the home page, follow-ups and drill-down, the command palette, phones, reduced motion |
+| Stream reader | `pnpm -C web check` | self-check | the UI's SSE reader on stage, partial and result events split across chunks, with no server |
+
+DB tests skip themselves when Postgres is down or empty, so run `make up && make seed && make seed-eval` first for the full
+count. The counts above are from 22 Nov 2026 on `main`. Tests label their runs `source = 'test'`, so they never show on the
+Runs page or in Recent.
 
 ## Synthetic data, honestly
 
@@ -206,7 +286,10 @@ from the loaded tables, and the load rolls back if the two disagree. All bank an
    - The LIMIT is enforced, including `FETCH … WITH TIES`.
 4. **Execution limits.** Queries run in a read-only transaction with `SET LOCAL statement_timeout`. An EXPLAIN gate checks the **maximum node cost** in the plan, and rows are streamed one at a time under a 50 MB result budget.
 5. **What the LLM sees.** Only sanitised aggregates: closed-vocabulary values, ids, numbers, and code-generated DQ messages. No display names, no free text, and no rate cells under the support threshold.
-6. **Adversarial review.** An independent multi-agent review tried to break each layer and reproduced 24 issues. All are fixed with regression tests (see `docs/TASKS.md`). The worst was `(expr).fname` field-selection syntax calling arbitrary functions past the allowlist. Row data stayed protected by the DB layer throughout.
+6. **Run history is per persona.** A saved run, its permalink and its feedback are returned only to the persona that
+   asked it. Another persona's run, a missing run and a malformed id all get the same bare 404. The app's own role can
+   only `INSERT` and `SELECT` on `app.runs` and `app.run_feedback`, so feedback is insert-only and the latest rating wins.
+7. **Adversarial review.** An independent multi-agent review tried to break each layer and reproduced 24 issues. All are fixed with regression tests (see `docs/TASKS.md`). The worst was `(expr).fname` field-selection syntax calling arbitrary functions past the allowlist. Row data stayed protected by the DB layer throughout.
 
 ## Assumptions, mocks, limitations
 
@@ -217,6 +300,10 @@ from the loaded tables, and the load rolls back if the two disagree. All bank an
 - **LLM backends.** The Anthropic API (`ANTHROPIC_API_KEY`) or the local `claude` CLI. The CLI path was used for development and evaluation; the API path is unit-tested but was not run live here (no key on the build machine).
 - **Volume leak through planner statistics.** These leak per-region volume to anyone with a direct DB login; personas never get one.
 - **The API is one process.** The query cache is per process.
+- **Recent and permalinks start on 21 Nov 2026.** Only runs saved with their full bundle can be reopened. Older runs stay on
+  the Runs page but cannot be reopened.
+- **Run labels come from the environment.** `SHERPA_RUN_SOURCE` (default `app`; tests set `test`, the eval sets `eval`)
+  decides whether a run counts on the Runs page. An API started by hand for checks against the real database should set it to `test`.
 - **Docker coverage.** The Python image was built and verified with the earlier Streamlit UI (health endpoint, plus a full pipeline answer from inside the container against the compose DB). The `api` service (same image, uvicorn instead of Streamlit) and the Next.js `web` image have not been built, and the one-shot `seed` service was not run on the build machine (disk space). The local `make seed` and `make app` paths are the tested ones.
 
 ## Repository layout
@@ -225,13 +312,15 @@ from the loaded tables, and the load rolls back if the two disagree. All bank an
 sherpa/           contracts.py (shared types) · config.py · catalog.yaml (governed metrics)
                   planner.py · triage.py · compiler.py · guard.py · db.py · runs.py
                   drivers.py · dq.py · reconcile.py · narrate.py · charts.py · pipeline.py · llm.py
-app/              FastAPI for the UI: api.py (ask over SSE, meta, explore, eval, runs) · view.py (every number as a string)
-web/              Next.js UI (Ask, Explore, Eval, Runs) · e2e/ (Playwright, fixture mode)
+app/              FastAPI for the UI: api.py (ask over SSE, meta, explore, eval, runs, history, feedback)
+                  view.py (every number as a string; follow-ups, headline chips, Markdown) · overview.py (home KPIs, data health)
+web/              Next.js UI: app/ (Ask, Explore, Eval, Runs) · components/ (answer, rail, charts, shell, ask, eval, runs)
+                  lib/ (API client and SSE reader, store, chart theme) · e2e/ (Playwright, fixture mode)
 db/               schema.sql · access.yaml · roles.py (grants + RLS from access.yaml) · build_analytics.sql
 gen/              seeded generator + planted scenarios + ground truth
 eval/             gold SQL, cases, naive baseline, runner
 tests/            unit, DB, end-to-end pipeline and API tests
-docs/             ARCHITECTURE.md · CONTRACTS.md · TASKS.md · agents/ (how it was built)
+docs/             ARCHITECTURE.md · CONTRACTS.md · TASKS.md · DEMO.md · agents/ (agent briefs) · superpowers/ (UI spec + plan) · img/
 ```
 
 ## How it was built
@@ -240,6 +329,18 @@ A master agent wrote the contracts (`sherpa/contracts.py`, `docs/CONTRACTS.md`),
 agents in parallel tmux sessions, one git worktree and branch each: data, sql, analytics, ai and ui. Agents coordinated through
 contract files and question/answer files, not chat. The master reviewed and merged each branch, wrote the integration
 (`sherpa/pipeline.py`), and ran an adversarial multi-agent review whose findings were fixed with regression tests. See `docs/TASKS.md`.
+
+The UI was then built in three rounds, each on its own branch and merged with `--no-ff`:
+
+1. **Next.js Inspector Rail** (`148b4ad`). This replaced the first Streamlit UI with a FastAPI service and a Next.js front end. It
+   started from a written design ([spec](docs/superpowers/specs/2026-11-21-nextjs-inspector-ui-design.md),
+   [plan](docs/superpowers/plans/2026-11-21-nextjs-inspector-ui.md)), with a task-by-task implement-then-review loop.
+2. **Polish** (`2738e69`). An accent theme with AA contrast in both themes, the home overview, charts on the Eval and Runs
+   pages, CSS-only motion, and the run-source label that keeps test traffic off the Runs page.
+3. **UX pack** (`adaada0`). Twelve features built by five parallel agents in separate worktrees: run history and
+   permalinks, feedback, the partial answer, explain-a-dip, the data-health rail, follow-ups, drill-down, copy and PNG,
+   headline chips, wide tables, the command palette and the phone layout. An integrator merged the five branches, review
+   agents checked the result, and their findings were fixed before the merge to `main`.
 
 ## Credits and licences
 
