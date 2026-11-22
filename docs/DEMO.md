@@ -1,6 +1,7 @@
 # Demo script (about 3:45)
 
 The submission allows a 2–5 minute video. This script runs about 3:45 and shows every failure scenario in the brief.
+The submitted video ([Google Drive](https://drive.google.com/file/d/18nPHNoJEuswhhqcJ9p4BTKEN5-DaiPhA/view), 4:42) covers the same flow, plus an unsafe-request refusal, with a shorter AI-voiced narration.
 
 ## Setup
 
@@ -22,7 +23,7 @@ The submission allows a 2–5 minute video. This script runs about 3:45 and show
 | 0:50 | The answer: headline chips (92.5% → 91.7%), the **Simpson's paradox** callout, the waterfall | "Down 0.84 points, but minus 0.92 is mix and plus 0.08 is rate. UPI's share went from 45% to 58%, and UPI's own success rate didn't move. No method got worse." |
 | 1:05 | Click a Fact's **E2** chip: the rail's **Evidence** tab opens that query (SQL, hash, window, filters) and every claim citing it is highlighted | "Every number is a placeholder filled from an executed query. The model never types a digit; a checker rejects it if it does, even 'one hour'." |
 | 1:15 | Point at **Ask next** and the drill links under the waterfall (UPI, CARD…), and **Copy answer** | "Follow-ups come with their own plans, any bar drills into its segment, and the answer copies as Markdown." |
-| 1:20 | Click **Ask** in the sidebar to go home, then click the **22 Oct** dip on the trend | "Click any day to ask why it moved. This one is a different shape: EGRET bank's technical declines went from 0.6% to 9.9%, concentrated at 10:00–16:00. 'Outage' is labelled a hypothesis, with a recommendation." |
+| 1:20 | Click **Ask** in the sidebar to go home, then click the **22 Oct** dip on the trend | "Click any day to ask why it moved. This one is a different shape: EGRET bank's success rate fell from 91.0% to 83.8% as its technical declines went from 0.6% to 9.9%, worst around midday. A problem at the bank is labelled a hypothesis, with a recommendation." |
 | 1:45 | Ask **What was our success rate last week?** | "Ambiguous: with or without customer drop-offs? It computed both, 91.7% vs 85.4%, and asks. When both definitions tell the same story, it just states the assumption." |
 | 2:00 | Press **⌘K** (Ctrl K), type "south", pick **Regional manager, South**. Ask **Compare North vs South success rate**. | "Out of scope. An explained refusal and a one-click South-only answer, before any SQL runs." |
 | 2:15 | (Optional) the terminal: `uv run pytest -k rls_backstop` | "If the app layer had a bug, Postgres row-level security on this login role still returns only South rows. That test bypasses the guard on purpose." |

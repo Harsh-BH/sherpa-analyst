@@ -126,7 +126,7 @@ Five agents, one worktree each, built twelve features in parallel; an integrator
   unsupported numbers 0 vs 72. Later rounds changed the UI, the API, run storage and chart styling, not the analysis path.
 - **Docker:** the Python image was built and verified with the Streamlit UI (health plus a pipeline answer inside the
   container), then removed to free disk. The `api` and Next.js `web` images are written but not built.
-- **Before submitting:** the GitHub repo is private and must be made public; the demo video follows `docs/DEMO.md`.
+- **Submitted on 22 Nov 2026:** the repo was made public for review, and the [demo video](https://drive.google.com/file/d/18nPHNoJEuswhhqcJ9p4BTKEN5-DaiPhA/view) (4:42) is linked from the README.
 
 ## Adversarial review (I5): 24 findings, all reproduced by an independent skeptic, all fixed with regression tests
 

@@ -16,6 +16,8 @@ recommendation / caveat**, and a checker rejects any number the model typed inst
 
 <sub>A real run (claude-cli backend, 16.9 s, $0.19), reopened from its permalink. Dark theme: [`docs/img/ui-dark.png`](docs/img/ui-dark.png).</sub>
 
+**Demo video (4:42):** [watch it on Google Drive](https://drive.google.com/file/d/18nPHNoJEuswhhqcJ9p4BTKEN5-DaiPhA/view). It shows the app used live on the seeded data, with an AI voice-over.
+
 **Contents:** [Why this design](#why-this-design) · [Quickstart](#quickstart) · [What to try](#what-to-try) ·
 [Using the app](#using-the-app) · [How it works](#how-it-works) · [Failure scenarios](#the-briefs-failure-scenarios) ·
 [Evaluation](#evaluation) · [Tests](#tests) · [Security](#security-model) · [Limitations](#assumptions-mocks-limitations) ·
